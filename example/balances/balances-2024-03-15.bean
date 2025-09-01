@@ -1,0 +1,5 @@
+2024-03-15 custom "balance-ext" Assets:MyBank 2200 USD
+2024-03-15 custom "balance-ext" Assets:MyBank:Savings 5065 USD
+2024-03-15 custom "balance-ext" Assets:StockBroker:Portfolio 521 USD
+2024-03-15 custom "balance-ext" Assets:Physical:Cash 5700 JPY
+2024-03-15 custom "balance-ext" Assets:Physical:Cash 120 EUR

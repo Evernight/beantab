@@ -1,0 +1,59 @@
+; Prices for multi-currency
+2024-01-01 price EUR 1.08 USD
+2024-01-01 price JPY 0.0067 USD
+
+; Opening balances
+2024-01-01 * "Opening balances"
+  Assets:MyBank                    1000.00 USD
+  Assets:MyBank:Savings             5000.00 USD
+  Assets:Physical:Cash              100.00 EUR
+  Assets:Physical:Cash            10000.00 JPY
+  Liabilities:Loan:Bob             -500.00 USD
+  Equity:OpeningBalances
+
+; Sample transactions
+2024-01-15 * "Salary"
+  Assets:MyBank                    3000.00 USD
+  Income:Salary                   -3000.00 USD
+
+2024-01-16 * "Groceries"
+  Expenses:Food                     120.50 USD
+  Assets:MyBank                    -120.50 USD
+
+2024-01-20 * "Investment"
+  Assets:StockBroker:Portfolio       500.00 USD
+  Assets:MyBank                    -500.00 USD
+
+2024-01-25 * "Rent"
+  Expenses:Housing                 1200.00 USD
+  Assets:MyBank                   -1200.00 USD
+
+2024-01-30 * "Interest"
+  Assets:MyBank:Savings              12.50 USD
+  Income:Interest                  -12.50 USD
+
+2024-02-01 * "Transport"
+  Expenses:Transport                 75.00 USD
+  Assets:MyBank                     -75.00 USD
+
+2024-01-11 custom "pad-ext" Assets:MyBank
+
+; Balance statements for testing (padded accounts use balance-ext from config)
+2024-01-31 balance Assets:MyBank            2104.50 USD
+  test_metadata: "test_metadata"
+2024-01-31 balance Assets:MyBank:Savings     5012.50 USD
+2024-01-31 balance Assets:StockBroker:Portfolio  500.00 USD
+2024-01-31 balance Assets:Physical:Cash       100.00 EUR
+2024-01-31 balance Assets:Physical:Cash     10000.00 JPY
+
+2024-01-31 custom "balance-ext" Liabilities:Loan:Bob  -30.00 USD -20.00 EUR
+
+2024-02-05 custom "pad-ext" Assets:MyBank
+
+2024-02-28 balance Assets:MyBank              2029.50 USD
+2024-02-28 balance Assets:MyBank:Savings     5012.50 USD
+  test_metadata_2: "test_metadata_2"
+; valuation fund: balance-ext produces valuation entry
+2024-02-28 custom "balance-ext" Assets:StockBroker:Portfolio 499 USD
+
+2024-03-23 custom "balance-ext" Liabilities:Loan:Bob 0

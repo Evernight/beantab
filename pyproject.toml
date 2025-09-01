@@ -1,0 +1,75 @@
+[project]
+name = "beantab"
+dynamic = ["version"]
+description = "BeanTab - Spreadsheet-like balance manager for Fava and Beancount"
+authors = [
+    { name = "Evernight" }
+]
+dependencies = [
+    "beancount-lazy-plugins @ git+https://github.com/Evernight/beancount-lazy-plugins@e3f76b8abf5c5e2b66a92673c904def5a8ac47d1",
+    "fava>=1.30.3",
+]
+readme = "README.md"
+requires-python = ">= 3.10"
+license = {text = "GPL-2.0"}
+
+[project.urls]
+Source = "https://github.com/Evernight/beantab"
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "coverage>=7.6.10",
+    "mypy>=1.9.0",
+    "pylint>=3.1.0",
+    "pytest>=8.3.3",
+    "ruff>=0.8.1",
+]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/beantab"]
+
+[tool.pylint.'messages control']
+disable = [
+    "broad-exception-raised",
+    "duplicate-code",
+    "missing-module-docstring",
+    "missing-class-docstring",
+    "missing-function-docstring",
+    "no-else-return",
+    "line-too-long",
+    "too-few-public-methods",
+    "too-many-arguments",
+    "too-many-positional-arguments",
+    "too-many-locals",
+    "too-many-branches",
+    "too-many-statements",
+    "too-many-return-statements",
+]
+
+[tool.pytest.ini_options]
+filterwarnings = "ignore::DeprecationWarning"
+
+[tool.ruff]
+line-length = 120
+
+extend-exclude = [
+  "src/fava_currency_tracker.egg-info",
+]
+
+extend-select = ["I"]
+
+[tool.ruff.lint.isort]
+force-single-line = true
+
+[tool.ruff.lint]
+extend-select = ["I"]
