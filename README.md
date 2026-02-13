@@ -1,5 +1,7 @@
 # BeanTab
 
+![License](https://img.shields.io/badge/license-GPL--2.0-green.svg)
+
 BeanTab is a spreadsheet-like interface for [Fava](https://fava.pythonanywhere.com/) to mangage balance assertions in your [Beancount](https://beancount.github.io/) ledger.
 
 ![BeanTab](images/screenshot.png)
@@ -31,7 +33,7 @@ Add the Fava extension directive:
 2024-01-01 custom "fava-extension" "beantab" "{}"
 ```
 
-For suggested usage pattern you will need to set up ```balance-ext``` and ```pad-ext``` from [beancount-lazy-plugins](https://github.com/Evernight/beancount-lazy-plugins). See [example](example/example.beancount) for more details.
+For suggested usage pattern you will need to set up [balance-ext](https://github.com/Evernight/beancount-lazy-plugins/blob/main/docs/balance_extended/README.md) and [pad-ext](https://github.com/Evernight/beancount-lazy-plugins/blob/main/docs/pad_extended/README.md) from [beancount-lazy-plugins](https://github.com/Evernight/beancount-lazy-plugins). See [example](example/example.beancount) for more details.
 
 ## Usage
 
