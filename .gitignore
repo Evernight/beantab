@@ -289,12 +289,6 @@ dist
 .yarn/install-state.gz
 .pnp.*
 
-# Built extension files
-src/beantab/BeanTab.js
-
 # Test results
 frontend/test-results/
 frontend/playwright-report/
-
-# UV lock file
-uv.lock
