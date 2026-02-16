@@ -1,12 +1,27 @@
 import { autorun, makeAutoObservable } from "mobx";
 import { BALANCE_TYPE_SYMBOLS } from "../constants/balanceTypes";
 
-const STORAGE_KEY = "beantab.modifiedCells";
+const MODIFIED_CELLS_STORAGE_KEY = "beantab.modifiedCells";
+const ADDITIONAL_DATES_STORAGE_KEY = "beantab.additionalDates";
 
-function loadFromStorage(): Map<string, ModifiedCell> {
+function formatLocalISODate(d: Date): string {
+    const yyyy = d.getFullYear().toString().padStart(4, "0");
+    const mm = (d.getMonth() + 1).toString().padStart(2, "0");
+    const dd = d.getDate().toString().padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+}
+
+function getDefaultAdditionalDates(): string[] {
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+    return [formatLocalISODate(today), formatLocalISODate(tomorrow)];
+}
+
+function loadModifiedCellsFromStorage(): Map<string, ModifiedCell> {
   if (typeof window === "undefined") return new Map();
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(MODIFIED_CELLS_STORAGE_KEY);
     if (!raw) return new Map();
     const arr = JSON.parse(raw) as ModifiedCell[];
     const map = new Map<string, ModifiedCell>();
@@ -20,11 +35,34 @@ function loadFromStorage(): Map<string, ModifiedCell> {
   }
 }
 
-function saveToStorage(map: Map<string, ModifiedCell>): void {
+function saveModifiedCellsToStorage(map: Map<string, ModifiedCell>): void {
   if (typeof window === "undefined") return;
   try {
     const arr = Array.from(map.values());
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
+    localStorage.setItem(MODIFIED_CELLS_STORAGE_KEY, JSON.stringify(arr));
+  } catch {
+    // Ignore quota / privacy errors
+  }
+}
+
+function loadAdditionalDatesFromStorage(): string[] {
+  if (typeof window === "undefined") return getDefaultAdditionalDates();
+  try {
+    const raw = localStorage.getItem(ADDITIONAL_DATES_STORAGE_KEY);
+    if (!raw) return getDefaultAdditionalDates();
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return getDefaultAdditionalDates();
+    const list = parsed.filter((v): v is string => typeof v === "string").map((v) => v.trim()).filter((v) => v.length > 0);
+    return list.length > 0 ? [...new Set(list)].sort() : getDefaultAdditionalDates();
+  } catch {
+    return getDefaultAdditionalDates();
+  }
+}
+
+function saveAdditionalDatesToStorage(dates: string[]): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(ADDITIONAL_DATES_STORAGE_KEY, JSON.stringify(dates));
   } catch {
     // Ignore quota / privacy errors
   }
@@ -47,13 +85,22 @@ export interface ModifiedCell {
 }
 
 export class BeanTabStore {
-  modifiedCells = new Map<string, ModifiedCell>(loadFromStorage());
+  modifiedCells = new Map<string, ModifiedCell>(loadModifiedCellsFromStorage());
+  additionalDates = loadAdditionalDatesFromStorage();
 
   constructor() {
     makeAutoObservable(this);
     autorun(() => {
-      saveToStorage(this.modifiedCells);
+      saveModifiedCellsToStorage(this.modifiedCells);
     });
+    autorun(() => {
+      saveAdditionalDatesToStorage(this.additionalDates);
+    });
+  }
+
+  setAdditionalDates(dates: string[]) {
+    const normalized = [...new Set(dates.map((v) => v.trim()).filter((v) => v.length > 0))].sort();
+    this.additionalDates = normalized;
   }
 
   /**

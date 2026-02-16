@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { observer } from "mobx-react-lite";
 import {
     Box,
@@ -12,26 +12,13 @@ import HelpOutlinedIcon from "@mui/icons-material/HelpOutlined";
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import BeanTabGrid from "./BeanTabGrid";
+import { beanTabStore } from "../stores/beanTabStore";
 import TableEditControls from "./TableEditControls";
 import { AccountFilter } from "./AccountFilter";
 import { AdditionalDatesInput } from "./AdditionalDatesInput";
 import { useBalances } from "../api/balances";
 import { HelpDialog } from "./HelpDialog";
 import { SettingsDialog } from "./SettingsDialog";
-
-function formatLocalISODate(d: Date): string {
-    const yyyy = d.getFullYear().toString().padStart(4, "0");
-    const mm = (d.getMonth() + 1).toString().padStart(2, "0");
-    const dd = d.getDate().toString().padStart(2, "0");
-    return `${yyyy}-${mm}-${dd}`;
-}
-
-function getDefaultAdditionalDates(): string[] {
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(today.getDate() + 1);
-    return [formatLocalISODate(today), formatLocalISODate(tomorrow)];
-}
 
 function normalizeList(values: string[]): string[] {
     const seen = new Set<string>();
@@ -73,7 +60,6 @@ function readStringListValue(value: unknown): string[] {
 type SearchState = Record<string, unknown>;
 type SearchParams = {
     accountFilter?: unknown;
-    additionalDates?: unknown;
     sortProp?: unknown;
     sortOrder?: unknown;
     groupByAccount?: unknown;
@@ -109,12 +95,7 @@ function readNumberParam(value: unknown, fallback: number): number {
 const Dashboard: React.FC = () => {
     const navigate = useNavigate();
     const searchParams = useSearch({ strict: false }) as SearchParams;
-    const {
-        accountFilter,
-        additionalDates: additionalDatesParam,
-        sortProp,
-        sortOrder,
-    } = searchParams;
+    const { accountFilter, sortProp, sortOrder } = searchParams;
     const { data: balancesData, isLoading, error } = useBalances();
     const [accountFilterInput, setAccountFilterInput] = useState<string>("");
     const [additionalDatesInput, setAdditionalDatesInput] = useState<string>("");
@@ -141,37 +122,12 @@ const Dashboard: React.FC = () => {
         [searchParams.hideAccountsWithNoEntries],
     );
 
-    const defaultAdditionalDates = useMemo(() => getDefaultAdditionalDates(), []);
-
     // Source of truth: URL query params.
     const accountFilterPatterns = useMemo(() => {
         return readStringListValue(accountFilter);
     }, [accountFilter]);
 
-    const additionalDates = useMemo(() => {
-        if (additionalDatesParam === undefined) return defaultAdditionalDates;
-        const rawDates = readStringListValue(additionalDatesParam);
-        const expanded =
-            rawDates.length === 1 && rawDates[0] && rawDates[0].includes(",")
-                ? rawDates[0].split(",").map((v) => v.trim())
-                : rawDates;
-        return normalizeList(expanded).sort();
-    }, [additionalDatesParam, defaultAdditionalDates]);
-
     const sortingConfig = {prop: sortProp, order: sortOrder};
-
-    // Persist default additional dates into the URL so the state is shareable/bookmarkable.
-    useEffect(() => {
-        if (additionalDatesParam !== undefined) return;
-        navigate({
-            to: ".",
-            search: (prev: SearchState) => ({
-                ...prev,
-                additionalDates: defaultAdditionalDates,
-            }),
-            replace: true,
-        });
-    }, [additionalDatesParam, navigate, defaultAdditionalDates]);
 
     const setAccountFilterPatterns = useCallback(
         (patterns: string[]) => {
@@ -181,21 +137,6 @@ const Dashboard: React.FC = () => {
                 search: (prev: SearchState) => ({
                     ...prev,
                     accountFilter: normalized.length > 0 ? normalized : undefined,
-                }),
-                replace: true,
-            });
-        },
-        [navigate],
-    );
-
-    const setAdditionalDates = useCallback(
-        (dates: string[]) => {
-            const normalized = normalizeList(dates).sort();
-            navigate({
-                to: ".",
-                search: (prev: SearchState) => ({
-                    ...prev,
-                    additionalDates: normalized.length === 0 ? [] : normalized,
                 }),
                 replace: true,
             });
@@ -319,10 +260,10 @@ const Dashboard: React.FC = () => {
                         </Box>
                         <Box sx={{ flex: "1 1 0", minWidth: 260 }}>
                             <AdditionalDatesInput
-                                dates={additionalDates}
+                                dates={beanTabStore.additionalDates}
                                 inputValue={additionalDatesInput}
                                 setInputValue={setAdditionalDatesInput}
-                                setDates={setAdditionalDates}
+                                setDates={(dates) => beanTabStore.setAdditionalDates(dates)}
                             />
                         </Box>
                         <Stack direction="row" spacing={0} sx={{ pt: 0.75 }} alignItems="center">
@@ -352,7 +293,7 @@ const Dashboard: React.FC = () => {
                         isLoading={isLoading}
                         error={error}
                         accountsFilter={compiledAccountRegexes.valid}
-                        additionalDates={additionalDates}
+                        additionalDates={beanTabStore.additionalDates}
                         groupByAccount={groupByAccount}
                         hideDatesWithLessThanEntries={hideDatesWithLessThanEntries}
                         hideAccountsWithNoEntries={hideAccountsWithNoEntries}
