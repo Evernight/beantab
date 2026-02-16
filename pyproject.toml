@@ -1,6 +1,6 @@
 [project]
 name = "beantab"
-dynamic = ["version"]
+version = "0.1.0"
 description = "BeanTab - Spreadsheet-like balance manager for Fava and Beancount"
 authors = [
     { name = "Evernight" }
