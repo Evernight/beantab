@@ -6,7 +6,7 @@ authors = [
     { name = "Evernight" }
 ]
 dependencies = [
-    "beancount-lazy-plugins @ git+https://github.com/Evernight/beancount-lazy-plugins@e3f76b8abf5c5e2b66a92673c904def5a8ac47d1",
+    "beancount-lazy-plugins",
     "fava>=1.30.3",
 ]
 readme = "README.md"
