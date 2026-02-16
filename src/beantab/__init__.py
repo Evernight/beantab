@@ -52,6 +52,7 @@ class BeanTabBalance:
 class BeanTabAccount:
     account: str
     defaultBalanceType: str
+    currencies: List[str]
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -256,8 +257,26 @@ class BeanTab(FavaExtensionBase):
                     )
                     balances.append(bean_tab_balance.to_dict())
 
+        # Per-account currencies: from Open directive when declared, else from balances
+        account_currencies_list: Dict[str, List[str]] = {}
+        for account in account_to_type_mapping:
+            currencies = account_currencies.get(account, set())
+            if currencies:
+                account_currencies_list[account] = sorted(currencies)
+            else:
+                from_balances = {
+                    b["currency"]
+                    for b in balances
+                    if b["account"] == account
+                }
+                account_currencies_list[account] = sorted(from_balances)
+
         accounts = [
-            BeanTabAccount(account=account, defaultBalanceType=balance_type).to_dict()
+            BeanTabAccount(
+                account=account,
+                defaultBalanceType=balance_type,
+                currencies=account_currencies_list.get(account, []),
+            ).to_dict()
             for account, balance_type in sorted(account_to_type_mapping.items())
         ]
 

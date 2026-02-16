@@ -395,8 +395,8 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
       groupedBalances.get(key)!.push(balance);
     });
 
-    // Transform data for RevoGrid
-    transformedData = Array.from(groupedBalances.entries()).map(([key, balances]) => {
+    // Transform data for RevoGrid from balances
+    transformedData = Array.from(groupedBalances.entries()).map(([key, balList]) => {
       const [account, currency] = key.split("|");
       const row: GridRow = {
         account,
@@ -405,7 +405,7 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
       };
 
       effectiveDates.forEach((date) => {
-        const balance = balances.find((b) => b.date === date);
+        const balance = balList.find((b) => b.date === date);
         if (!balance) {
           row[date] = null;
           return;
@@ -421,6 +421,27 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
 
       return row;
     });
+
+    // Extend with rows from accounts (each account × each currency) not already present
+    const existingKeys = new Set(transformedData.map((r) => `${r.account}|${r.currency}`));
+    for (const acc of accounts) {
+      if (accountsFilter?.length && !accountsFilter.some((re) => re.test(acc.account))) continue;
+      const currencies = acc.currencies ?? [];
+      for (const currency of currencies) {
+        const key = `${acc.account}|${currency}`;
+        if (existingKeys.has(key)) continue;
+        existingKeys.add(key);
+        const row: GridRow = {
+          account: acc.account,
+          currency,
+          defaultBalanceType: defaultBalanceTypeByAccount.get(acc.account) || "",
+        };
+        effectiveDates.forEach((date) => {
+          row[date] = null;
+        });
+        transformedData.push(row);
+      }
+    }
 
     // Overlay any pending edited values
     const modifiedCells = beanTabStore.getAllModifiedCells();

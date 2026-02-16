@@ -12,6 +12,8 @@ export interface BeanTabBalance {
 export interface BeanTabAccount {
   account: string;
   defaultBalanceType: string;
+  /** Currencies from Open directive (or from balances when not declared) */
+  currencies: string[];
 }
 
 export interface BalanceErrorItem {
