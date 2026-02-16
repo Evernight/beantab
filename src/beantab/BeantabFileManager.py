@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import re
 from collections import defaultdict
-from decimal import Decimal, MAX_EMAX
+from decimal import Decimal, InvalidOperation, MAX_EMAX
 import logging
 import os
 from pathlib import Path
@@ -19,6 +20,13 @@ from .models import ModifiedCellData
 from .utils import is_original_entry
 
 logger = logging.getLogger(__name__)
+
+_BALANCE_TYPE_SUFFIX_RE = re.compile(r"(F~|~|!|F|V)\s*$")
+
+
+def _strip_balance_type_suffix(s: str) -> str:
+    """Remove trailing balance type symbol from a string (e.g. '100.50~' -> '100.50')."""
+    return _BALANCE_TYPE_SUFFIX_RE.sub("", s.strip()).strip()
 
 
 class BeantabFileManager:
@@ -157,7 +165,12 @@ class BeantabFileManager:
         if original_value is None:
             return False
         if not isinstance(original_value, Decimal):
-            original_value = Decimal(str(original_value))
+            s = _strip_balance_type_suffix(str(original_value))
+            try:
+                original_value = Decimal(s)
+            except (InvalidOperation, ValueError):
+                logger.warning("Cannot parse originalValue as Decimal: %r", original_value)
+                return False
         return self._values_equal(current_amount, original_value)
 
     def _values_equal(self, current_amount: Decimal, original_value: Decimal | None) -> bool:

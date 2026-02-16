@@ -256,7 +256,6 @@ const BalanceCell: React.FC<BalanceCellProps> = (props) => {
   const errorKey = props.model?.account && props.model?.currency
     ? `${props.model.account}|${props.model.currency}|${propKey}`
     : "";
-  console.log(errorKey, balanceErrorMessages);
   const hasBalanceError = !!errorKey && balanceErrorKeys.has(errorKey);
   const balanceErrorMessage = errorKey ? balanceErrorMessages[errorKey] : undefined;
   const hasModified =
