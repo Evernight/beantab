@@ -71,5 +71,4 @@ include "transactions.bean"
 include "balances/*.bean"
 
 ; Original pad + balance operations from vanilla Beancount
-plugin "beancount.ops.pad"
 plugin "beancount.ops.balance"
