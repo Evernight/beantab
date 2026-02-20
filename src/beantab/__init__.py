@@ -1,31 +1,32 @@
-from collections import defaultdict
 import functools
 import logging
 import subprocess
 import traceback
-from dataclasses import dataclass, asdict
+from collections import defaultdict
+from dataclasses import asdict
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, NamedTuple, Optional
+from typing import Dict
+from typing import List
+from typing import NamedTuple
+from typing import Optional
 
 from beancount import Amount
 from beancount.core import data
 from beancount.core.interpolate import BalanceError as BeancountBalanceError
-from beancount_lazy_plugins.balance_extended.common import (
-    BalanceType,
-    BalanceExtendedError,
-    build_account_currencies_mapping,
-    ensure_account_balance_type,
-    get_directives_defined_config,
-    parse_balance_extended_entry,
-)
-from beancount_lazy_plugins.valuation.common import (
-    ValuationError,
-    parse_valuation_entry,
-)
+from beancount_lazy_plugins.balance_extended.common import BalanceExtendedError
+from beancount_lazy_plugins.balance_extended.common import BalanceType
+from beancount_lazy_plugins.balance_extended.common import build_account_currencies_mapping
+from beancount_lazy_plugins.balance_extended.common import ensure_account_balance_type
+from beancount_lazy_plugins.balance_extended.common import get_directives_defined_config
+from beancount_lazy_plugins.balance_extended.common import parse_balance_extended_entry
+from beancount_lazy_plugins.valuation.common import ValuationError
+from beancount_lazy_plugins.valuation.common import parse_valuation_entry
 from fava.ext import FavaExtensionBase
 from fava.ext import extension_endpoint
 from fava.helpers import FavaAPIError
 from flask import request
+
 from .BeantabFileManager import BeantabFileManager
 from .models import ModifiedCellData
 from .utils import is_original_entry
@@ -36,6 +37,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class BeanTabBalance:
     """Represents a balance statement for an account."""
+
     account: str  # account name
     currency: str  # currency from the amount
     date: str  # date in ISO format
@@ -56,6 +58,7 @@ class BeanTabAccount:
 
     def to_dict(self) -> dict:
         return asdict(self)
+
 
 class ExtConfig(NamedTuple):
     """Configuration for the Beantab extension."""
@@ -96,7 +99,6 @@ class BeanTab(FavaExtensionBase):
         """Read extension configuration from the ledger file."""
         cfg = self.config if isinstance(self.config, dict) else {}
         return ExtConfig()
-
 
     @extension_endpoint("reload")
     @api_response
@@ -156,7 +158,7 @@ class BeanTab(FavaExtensionBase):
         created/used by plugins (balance-ext, valuation).
         """
         entries = self.ledger.all_entries
-        
+
         # Convert to flat list of BeanTabBalance objects
         balances: List[BeanTabBalance] = []
         config_errors: List[BalanceExtendedError] = []
@@ -167,7 +169,7 @@ class BeanTab(FavaExtensionBase):
         account_to_type_mapping: dict[str, str] = {}
         default_balance_type = BalanceType.REGULAR.value
         account_currencies = build_account_currencies_mapping(self.ledger.all_entries)
-        
+
         for entry in entries:
             if isinstance(entry, data.Open):
                 ensure_account_balance_type(
@@ -237,16 +239,14 @@ class BeanTab(FavaExtensionBase):
                     BalanceType.FULL_PADDED: BalanceType.PADDED,
                     BalanceType.VALUATION: BalanceType.VALUATION,
                 }
-                balance_type_for_display = balance_type_map.get(
-                    parsed.balance_type, BalanceType.PADDED
-                )
+                balance_type_for_display = balance_type_map.get(parsed.balance_type, BalanceType.PADDED)
                 asserted_amounts = parsed.amount_values
                 if parsed.balance_type in (BalanceType.FULL, BalanceType.FULL_PADDED):
                     # TODO: proper implementation will need more consideration
                     continue
                     # all_currencies = account_currencies.get(parsed.account, set())
                     # asserted_amounts.extend([Amount(0.0, currency) for currency in all_currencies - set(asserted_amounts)])
-                    
+
                 for amount_obj in asserted_amounts:
                     bean_tab_balance = BeanTabBalance(
                         account=parsed.account,
@@ -264,11 +264,7 @@ class BeanTab(FavaExtensionBase):
             if currencies:
                 account_currencies_list[account] = sorted(currencies)
             else:
-                from_balances = {
-                    b["currency"]
-                    for b in balances
-                    if b["account"] == account
-                }
+                from_balances = {b["currency"] for b in balances if b["account"] == account}
                 account_currencies_list[account] = sorted(from_balances)
 
         accounts = [
@@ -285,12 +281,14 @@ class BeanTab(FavaExtensionBase):
         for err in self.ledger.errors:
             if isinstance(err, BeancountBalanceError) and getattr(err, "entry", None):
                 entry = err.entry
-                balance_errors.append({
-                    "account": entry.account,
-                    "date": entry.date.isoformat(),
-                    "currency": entry.amount.currency if entry.amount else None,
-                    "message": err.message,
-                })
+                balance_errors.append(
+                    {
+                        "account": entry.account,
+                        "date": entry.date.isoformat(),
+                        "currency": entry.amount.currency if entry.amount else None,
+                        "message": err.message,
+                    }
+                )
 
         return {
             "balances": balances,
@@ -330,9 +328,7 @@ class BeanTab(FavaExtensionBase):
                     balance_type=cell_data.get("balanceType"),
                 )
             except KeyError as exc:
-                raise FavaAPIError(
-                    f"Missing {exc.args[0]} in modifiedCells[{idx}]"
-                ) from exc
+                raise FavaAPIError(f"Missing {exc.args[0]} in modifiedCells[{idx}]") from exc
 
             modified_cells.append(modified_cell)
 
@@ -351,4 +347,3 @@ class BeanTab(FavaExtensionBase):
             "changes": processed_cells,
             "errors": errors,
         }
-

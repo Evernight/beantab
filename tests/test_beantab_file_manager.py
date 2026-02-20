@@ -78,10 +78,7 @@ class TestBeantabFileManager:
         2015-01-04 balance Assets:Cash 4 USD
         """
         entries, _errors, _options = load_string(dedent(ledger))
-        original_entry = next(
-            e for e in entries
-            if isinstance(e, data.Balance) and e.date.isoformat() == "2015-01-03"
-        )
+        original_entry = next(e for e in entries if isinstance(e, data.Balance) and e.date.isoformat() == "2015-01-03")
 
         changes = [
             (

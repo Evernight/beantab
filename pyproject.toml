@@ -6,7 +6,7 @@ authors = [
     { name = "Evernight" }
 ]
 dependencies = [
-    "beancount-lazy-plugins",
+    "beancount-lazy-plugins @ git+https://github.com/Evernight/beancount-lazy-plugins",
     "fava>=1.30.3",
 ]
 readme = "README.md"
@@ -71,8 +71,6 @@ extend-exclude = [
     "frontend/node_modules",
     "src/beantab.egg-info",
 ]
-
-extend-select = ["I"]
 
 [tool.ruff.lint.isort]
 force-single-line = true

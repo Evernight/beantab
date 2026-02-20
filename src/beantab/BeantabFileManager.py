@@ -1,21 +1,22 @@
 from __future__ import annotations
 
-import re
-from collections import defaultdict
-from decimal import Decimal, InvalidOperation, MAX_EMAX
 import logging
 import os
+import re
+from collections import defaultdict
+from decimal import MAX_EMAX
+from decimal import Decimal
+from decimal import InvalidOperation
 from pathlib import Path
 from typing import Sequence
 
-from beancount.parser import parser
 from beancount.core import data
-from beancount_lazy_plugins.balance_extended.common import (
-    BalanceType,
-    BalanceExtendedError,
-    get_directives_defined_config,
-    parse_balance_extended_entry,
-)
+from beancount.parser import parser
+from beancount_lazy_plugins.balance_extended.common import BalanceExtendedError
+from beancount_lazy_plugins.balance_extended.common import BalanceType
+from beancount_lazy_plugins.balance_extended.common import get_directives_defined_config
+from beancount_lazy_plugins.balance_extended.common import parse_balance_extended_entry
+
 from .models import ModifiedCellData
 from .utils import is_original_entry
 
@@ -36,11 +37,11 @@ class BeantabFileManager:
         self.ledger = ledger
 
     def _filename_for_balance(self, account: str, currency: str, date: str) -> str:
-        return f'balances/balances-{date}.bean'
+        return f"balances/balances-{date}.bean"
 
     def _generate_balance_entry(self, modified_cell: ModifiedCellData) -> str:
         # balance-ext format: date custom "balance-ext" [balance_type] account amount currency
-        parts = [modified_cell.date, 'custom', '"balance-ext"']
+        parts = [modified_cell.date, "custom", '"balance-ext"']
         if modified_cell.balance_type:
             parts.append(f'"{modified_cell.balance_type}"')
         parts.extend([modified_cell.account, str(modified_cell.newValue), modified_cell.currency])
@@ -50,7 +51,7 @@ class BeantabFileManager:
         first_line = initial_start_line
         last_line = initial_start_line
         while last_line < len(lines) - 1:
-            entry_candidate = "\n".join(lines[first_line:last_line+1])
+            entry_candidate = "\n".join(lines[first_line : last_line + 1])
             try:
                 entries, errors, options = parser.parse_string(entry_candidate)
             except Exception:
@@ -64,10 +65,10 @@ class BeantabFileManager:
         # Ignore all whitespace or comment lines in the end
         while last_line > first_line:
             if lines[last_line].strip() == "" or lines[last_line].strip().startswith(";"):
-                last_line -= 1            
+                last_line -= 1
             else:
                 break
-        entry_candidate = "\n".join(lines[first_line:last_line+1])
+        entry_candidate = "\n".join(lines[first_line : last_line + 1])
         try:
             entries, errors, options = parser.parse_string(entry_candidate)
         except Exception:
@@ -75,9 +76,8 @@ class BeantabFileManager:
             return None
         entry = entries[0]
         assert len(entries) == 1, "Expected exactly one entry"
-        
-        return (first_line, last_line, entry)
 
+        return (first_line, last_line, entry)
 
     def _apply_changes_to_lines(
         self,
@@ -102,7 +102,8 @@ class BeantabFileManager:
         for original_entry, modified_cell in changes:
             if original_entry is not None:
                 start_line, end_line, _parsed = self._get_all_entry_lines(
-                    lines, original_entry.meta["lineno"] - 1,
+                    lines,
+                    original_entry.meta["lineno"] - 1,
                 )
                 logger.info("Entry spans lines %d–%d", start_line, end_line)
 
@@ -219,9 +220,7 @@ class BeantabFileManager:
                 date = entry.date.isoformat()
                 key = (account, currency, date)
                 if key in existing_balances:
-                    errors.append(
-                        f"Duplicate balance entry found: {account} {currency} {date}"
-                    )
+                    errors.append(f"Duplicate balance entry found: {account} {currency} {date}")
                     continue
                 existing_balances[key] = entry
             elif isinstance(entry, data.Custom) and entry.type == "balance-ext":
@@ -238,13 +237,11 @@ class BeantabFileManager:
                 for amount_obj in parsed.amount_values:
                     key = (parsed.account, amount_obj.currency, date)
                     if key in existing_balances:
-                        errors.append(
-                            f"Duplicate balance entry found: {parsed.account} {amount_obj.currency} {date}"
-                        )
+                        errors.append(f"Duplicate balance entry found: {parsed.account} {amount_obj.currency} {date}")
                         continue
                     existing_balances[key] = entry
 
-        changes_by_file =  defaultdict(list)
+        changes_by_file = defaultdict(list)
         saved_cells: list[ModifiedCellData] = []
         for modified_cell in modified_cells:
             account = modified_cell.account
@@ -253,9 +250,7 @@ class BeantabFileManager:
 
             if (account, currency, date) in existing_balances:
                 filename = existing_balances[(account, currency, date)].meta["filename"]
-                changes_by_file[filename].append(
-                    (existing_balances[(account, currency, date)], modified_cell)
-                )
+                changes_by_file[filename].append((existing_balances[(account, currency, date)], modified_cell))
             else:
                 filename = self._filename_for_balance(account, currency, date)
                 changes_by_file[filename].append((None, modified_cell))
@@ -263,7 +258,7 @@ class BeantabFileManager:
         for filename, changes in changes_by_file.items():
             changes.sort(key=lambda c: (c[0].meta["lineno"] if c[0] else MAX_EMAX, c[1].date))
             if os.path.exists(filename):
-                with open(filename, 'r') as f:
+                with open(filename, "r") as f:
                     lines = f.readlines()
             else:
                 lines = []
@@ -271,12 +266,14 @@ class BeantabFileManager:
             lines, updated_entry_count, new_entry_count, applied_cells = self._apply_changes_to_lines(lines, changes)
             saved_cells.extend(applied_cells)
 
-            logger.info(f'Updating {updated_entry_count} entries and adding {new_entry_count} new entries to {filename}')
+            logger.info(
+                f"Updating {updated_entry_count} entries and adding {new_entry_count} new entries to {filename}"
+            )
 
             os.makedirs(os.path.dirname(filename), exist_ok=True)
-            with open(filename, 'w') as f:
+            with open(filename, "w") as f:
                 f.writelines(lines)
-            
+
             self.ledger.watcher.notify(Path(filename))
             logger.info("Notified watcher of change to %s", filename)
         logger.info(

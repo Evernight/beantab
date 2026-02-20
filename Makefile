@@ -50,11 +50,12 @@ dev-debug:
 lint:
 	cd frontend; npx tsc --noEmit
 	cd frontend; npm run lint
+	$(UV_RUN) python -m ruff check .
 	$(UV_RUN) mypy src/beantab
 	$(UV_RUN) pylint src/beantab
 
 format:
 	-cd frontend; npm run lint:fix
 	cd frontend; npx prettier -w ../src/beantab/templates/*.css
-	-$(UV_RUN) ruff check --fix
-	$(UV_RUN) ruff format .
+	-$(UV_RUN) python -m ruff check --fix .
+	$(UV_RUN) python -m ruff format .
