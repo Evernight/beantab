@@ -15,15 +15,18 @@ export interface PostingsData {
 }
 
 export function usePostings(
-  targetCurrency: string
+  targetCurrency: string,
+  options?: { enabled?: boolean }
 ): UseQueryResult<PostingsData> {
   const params = new URLSearchParams(location.search);
   params.set("target_currency", targetCurrency);
   const url = `postings?${params}`;
 
+  const enabled = options?.enabled ?? targetCurrency.length > 0;
+
   return useQuery({
     queryKey: ["postings", targetCurrency],
     queryFn: () => fetchJSON<PostingsData>(url),
-    enabled: targetCurrency.length > 0,
+    enabled: enabled && targetCurrency.length > 0,
   });
 }

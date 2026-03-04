@@ -41,6 +41,7 @@ interface BeanTabGridProps {
   error?: Error | null;
   accountsFilter?: RegExp[];
   additionalDates?: string[];
+  sortedDates: string[];
   groupByAccount?: boolean;
   hideDatesWithLessThanEntries?: number;
   hideAccountsWithNoEntries?: boolean;
@@ -319,6 +320,7 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
   error,
   accountsFilter,
   additionalDates,
+  sortedDates,
   groupByAccount = true,
   hideDatesWithLessThanEntries = 0,
   hideAccountsWithNoEntries = false,
@@ -349,16 +351,6 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
         ? balances.filter((b) => accountsFilter.some((re) => re.test(b.account)))
         : balances;
 
-    // Collect all unique dates and sort them
-    const allDates = new Set<string>();
-    filteredBalancesData.forEach((balance) => {
-      allDates.add(balance.date);
-    });
-    beanTabStore.getAllModifiedCells().forEach((cell) => {
-      allDates.add(cell.date);
-    });
-    additionalDatesSet.forEach((d) => allDates.add(d));
-    const sortedDates = Array.from(allDates).sort();
 
     // Compute number of distinct accounts with a value per date (dedupe currencies)
     const accountsByDate = new Map<string, Set<string>>();

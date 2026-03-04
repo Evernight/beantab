@@ -18,9 +18,74 @@ import TableEditControls from "./TableEditControls";
 import { AccountFilter } from "./AccountFilter";
 import { AdditionalDatesInput } from "./AdditionalDatesInput";
 import { useBalances } from "../api/balances";
-import { usePostings } from "../api/postings";
+import { usePostings, type AccountPosting } from "../api/postings";
 import { HelpDialog } from "./HelpDialog";
 import { SettingsDialog } from "./SettingsDialog";
+
+export interface AccountDelta {
+    assetsPositive: number;
+    liabilitiesPositive: number;
+    expensesPositive: number;
+    incomePositive: number;
+    assetsNegative: number;
+    liabilitiesNegative: number;
+    expensesNegative: number;
+    incomeNegative: number;
+}
+
+function createEmptyAccountDelta(): AccountDelta {
+    return {
+        assetsPositive: 0,
+        liabilitiesPositive: 0,
+        expensesPositive: 0,
+        incomePositive: 0,
+        assetsNegative: 0,
+        liabilitiesNegative: 0,
+        expensesNegative: 0,
+        incomeNegative: 0,
+    };
+}
+
+function addToDelta(delta: AccountDelta, account: string, amount: number): void {
+    const top = account.split(":")[0];
+    const isPositive = amount >= 0;
+    const suffix = isPositive ? "Positive" : "Negative";
+    const key = `${top.toLowerCase()}${suffix}` as keyof AccountDelta;
+    if (key in delta) {
+        delta[key] += amount;
+    }
+}
+
+function computeDeltasByAccount(
+    postings: AccountPosting[],
+    sortedDates: string[],
+): Record<string, Record<string, AccountDelta>> {
+    const deltasByAccount: Record<string, Record<string, AccountDelta>> = {};
+
+    for (let i = 0; i < sortedDates.length; i++) {
+        const date = sortedDates[i];
+        const prevDate = i > 0 ? sortedDates[i - 1] : "";
+
+        for (const p of postings) {
+            const postingDate = p.date;
+            const inRange =
+                (prevDate === "" || postingDate > prevDate) && postingDate <= date;
+            if (!inRange) continue;
+
+            const account = p.account;
+            const amount = p.units.number;
+
+            if (!deltasByAccount[account]) {
+                deltasByAccount[account] = {};
+            }
+            if (!deltasByAccount[account][date]) {
+                deltasByAccount[account][date] = createEmptyAccountDelta();
+            }
+            addToDelta(deltasByAccount[account][date], account, amount);
+        }
+    }
+    return deltasByAccount;
+}
 
 function normalizeList(values: string[]): string[] {
     const seen = new Set<string>();
@@ -141,13 +206,9 @@ const Dashboard: React.FC = () => {
 
     const showDeltas = readBooleanParam(showDeltasParam, SETTINGS_DEFAULTS.showDeltas);
 
-    const { data: postingsData } = usePostings(showDeltas ? conversionCurrency : "");
-
-    useEffect(() => {
-        if (showDeltas && postingsData) {
-            console.log("postings:", postingsData.postings);
-        }
-    }, [showDeltas, postingsData]);
+    const { data: postingsData } = usePostings(conversionCurrency, {
+        enabled: showDeltas && conversionCurrency.length > 0,
+    });
 
     // Source of truth: URL query params.
     const accountFilterPatterns = useMemo(() => {
@@ -287,6 +348,33 @@ const Dashboard: React.FC = () => {
         return { compiled, valid, invalid };
     }, [accountFilterPatterns]);
 
+    const sortedDates = (() => {
+        if (!balancesData) return [];
+        const { balances } = balancesData;
+        const filtered =
+            compiledAccountRegexes.valid?.length > 0
+                ? balances.filter((b) =>
+                      compiledAccountRegexes.valid.some((re) => re.test(b.account)),
+                  )
+                : balances;
+        const additionalDatesSet = new Set(
+            (beanTabStore.additionalDates ?? []).map((d) => d.trim()).filter((d) => d.length > 0),
+        );
+        const allDates = new Set<string>();
+        filtered.forEach((b) => allDates.add(b.date));
+        beanTabStore.getAllModifiedCells().forEach((c) => allDates.add(c.date));
+        additionalDatesSet.forEach((d) => allDates.add(d));
+        return Array.from(allDates).sort();
+    })();
+
+    const sortedDatesKey = sortedDates.join(",");
+    useEffect(() => {
+        if (showDeltas && postingsData && sortedDates.length > 0) {
+            const deltasByAccount = computeDeltasByAccount(postingsData.postings, sortedDates);
+            console.log("deltasByAccount:", deltasByAccount);
+        }
+    }, [showDeltas, postingsData, sortedDatesKey, sortedDates.length]);
+
     return (
         <Box>
             <Card>
@@ -350,6 +438,7 @@ const Dashboard: React.FC = () => {
                         error={error}
                         accountsFilter={compiledAccountRegexes.valid}
                         additionalDates={beanTabStore.additionalDates}
+                        sortedDates={sortedDates}
                         groupByAccount={groupByAccount}
                         hideDatesWithLessThanEntries={hideDatesWithLessThanEntries}
                         hideAccountsWithNoEntries={hideAccountsWithNoEntries}
