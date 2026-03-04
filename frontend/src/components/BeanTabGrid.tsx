@@ -20,6 +20,7 @@ import AccountTreeIcon from "@mui/icons-material/AccountTree";
 import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
 import TuneIcon from "@mui/icons-material/Tune";
 import RestoreIcon from "@mui/icons-material/Restore";
+import { blueGrey, brown, cyan, green } from "@mui/material/colors";
 import type { BalancesData } from "../api/balances";
 import { BALANCE_TYPE_DISPLAY_MAPPING } from "../constants/balanceTypes";
 import type { AccountDelta } from "../types/deltas";
@@ -52,53 +53,118 @@ interface BeanTabGridProps {
   onSortingChange?: (prop: string | null, order?: "asc" | "desc") => void;
 }
 
-const DELTA_SEGMENTS: { key: keyof AccountDelta; color: string }[] = [
-  { key: "assetsPositive", color: "#1976d2" },
-  { key: "assetsNegative", color: "#90caf9" },
-  { key: "liabilitiesPositive", color: "#7b1fa2" },
-  { key: "liabilitiesNegative", color: "#ce93d8" },
-  { key: "expensesPositive", color: "#ed6c02" },
-  { key: "expensesNegative", color: "#ffb74d" },
-  { key: "incomePositive", color: "#2e7d32" },
-  { key: "incomeNegative", color: "#81c784" },
+const DELTA_NEGATIVE: { key: keyof AccountDelta; color: string }[] = [
+  { key: "assetsNegative", color: blueGrey[500] },
+  { key: "liabilitiesNegative", color: brown[500] },
+  { key: "expensesNegative", color: green[500] },
+  { key: "incomeNegative", color: cyan[500] },
 ];
 
+const DELTA_POSITIVE: { key: keyof AccountDelta; color: string }[] = [
+  { key: "assetsPositive", color: blueGrey[500] },
+  { key: "liabilitiesPositive", color: brown[500] },
+  { key: "expensesPositive", color: green[500] },
+  { key: "incomePositive", color: cyan[500] },
+];
+
+const DeltaBarSegment: React.FC<{
+  delta: AccountDelta;
+  segments: { key: keyof AccountDelta; color: string }[];
+  total: number;
+  maxSum: number;
+  direction: "left" | "right";
+}> = ({ delta, segments, total, maxSum, direction }) => {
+  if (total <= 0) return null;
+  const barWidthPct = (total / maxSum) * 50;
+  return (
+    <Box
+      sx={{
+        flex: 1,
+        height: 20,
+        display: "flex",
+        flexDirection: direction === "left" ? "row-reverse" : "row",
+        justifyContent: "flex-start",
+        alignItems: "stretch",
+        overflow: "hidden",
+        backgroundColor: "action.hover",
+      }}
+    >
+      <Box
+        sx={{
+          width: `${barWidthPct}%`,
+          minWidth: 4,
+          display: "flex",
+          flexDirection: "row",
+          overflow: "hidden",
+        }}
+      >
+        {segments.map(({ key, color }) => {
+          const val = delta[key];
+          if (val === 0) return null;
+          const pct = (Math.abs(val) / total) * 100;
+          return (
+            <Tooltip key={key} title={`${key}: ${val.toFixed(2)}`}>
+              <Box
+                sx={{
+                  width: `${pct}%`,
+                  minWidth: Math.abs(val) > 0 ? 2 : 0,
+                  backgroundColor: color,
+                }}
+              />
+            </Tooltip>
+          );
+        })}
+      </Box>
+    </Box>
+  );
+};
+
 const DeltaBarCell: React.FC<ColumnDataSchemaModel | ColumnTemplateProp> = (props) => {
-  if (!("model" in props) || !("prop" in props)) return null;
-  const delta = props.model?.[props.prop] as AccountDelta | undefined;
+  const delta = props.value as AccountDelta;
   if (!delta) return null;
 
-  const totalAbs = DELTA_SEGMENTS.reduce((sum, { key }) => sum + Math.abs(delta[key]), 0);
-  if (totalAbs <= 0) return null;
-
+  const totalNeg = DELTA_NEGATIVE.reduce((sum, { key }) => sum + Math.abs(delta[key]), 0);
+  const totalPos = DELTA_POSITIVE.reduce((sum, { key }) => sum + Math.abs(delta[key]), 0);
+  const maxSum = Math.max(totalNeg, totalPos, 1);
+  if (totalNeg <= 0 && totalPos <= 0) return null;
   return (
     <Box
       sx={{
         width: "100%",
-        height: 20,
+        height: "100%",
         display: "flex",
+        alignItems: "center",
         flexDirection: "row",
-        overflow: "hidden",
-        borderRadius: 1,
-        backgroundColor: "action.hover",
+        gap: 0,
       }}
     >
-      {DELTA_SEGMENTS.map(({ key, color }) => {
-        const val = delta[key];
-        if (val === 0) return null;
-        const pct = (Math.abs(val) / totalAbs) * 100;
-        return (
-          <Tooltip key={key} title={`${key}: ${val.toFixed(2)}`}>
-            <Box
-              sx={{
-                width: `${pct}%`,
-                minWidth: val !== 0 ? 2 : 0,
-                backgroundColor: color,
-              }}
-            />
-          </Tooltip>
-        );
-      })}
+      <Box sx={{ flex: 1, overflow: "hidden", display: "flex", justifyContent: "flex-end" }}>
+        <DeltaBarSegment
+          delta={delta}
+          segments={DELTA_NEGATIVE}
+          total={totalNeg}
+          maxSum={maxSum}
+          direction="left"
+        />
+      </Box>
+      <Box
+        sx={{
+          width: "3px",
+          height: "80%",
+          alignSelf: "center",
+          mx: 0.5,
+          backgroundColor: "divider",
+        }}
+      />
+      <Box sx={{ flex: 1, overflow: "hidden", display: "flex", justifyContent: "flex-start" }}>
+        <DeltaBarSegment
+          delta={delta}
+          segments={DELTA_POSITIVE}
+          total={totalPos}
+          maxSum={maxSum}
+          direction="right"
+        />
+      </Box>
     </Box>
   );
 };
