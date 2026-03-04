@@ -22,6 +22,7 @@ import TuneIcon from "@mui/icons-material/Tune";
 import RestoreIcon from "@mui/icons-material/Restore";
 import type { BalancesData } from "../api/balances";
 import { BALANCE_TYPE_DISPLAY_MAPPING } from "../constants/balanceTypes";
+import type { AccountDelta } from "../types/deltas";
 import { BalanceTypeChip } from "./BalanceTypeChip";
 import {
   getColorFromHashString,
@@ -42,12 +43,65 @@ interface BeanTabGridProps {
   accountsFilter?: RegExp[];
   additionalDates?: string[];
   sortedDates: string[];
+  showDeltas?: boolean;
+  deltasByAccount?: Record<string, Record<string, AccountDelta>>;
   groupByAccount?: boolean;
   hideDatesWithLessThanEntries?: number;
   hideAccountsWithNoEntries?: boolean;
   sortingConfig?: { prop: string | null, order: "asc" | "desc" | undefined };
   onSortingChange?: (prop: string | null, order?: "asc" | "desc") => void;
 }
+
+const DELTA_SEGMENTS: { key: keyof AccountDelta; color: string }[] = [
+  { key: "assetsPositive", color: "#1976d2" },
+  { key: "assetsNegative", color: "#90caf9" },
+  { key: "liabilitiesPositive", color: "#7b1fa2" },
+  { key: "liabilitiesNegative", color: "#ce93d8" },
+  { key: "expensesPositive", color: "#ed6c02" },
+  { key: "expensesNegative", color: "#ffb74d" },
+  { key: "incomePositive", color: "#2e7d32" },
+  { key: "incomeNegative", color: "#81c784" },
+];
+
+const DeltaBarCell: React.FC<ColumnDataSchemaModel | ColumnTemplateProp> = (props) => {
+  if (!("model" in props) || !("prop" in props)) return null;
+  const delta = props.model?.[props.prop] as AccountDelta | undefined;
+  if (!delta) return null;
+
+  const totalAbs = DELTA_SEGMENTS.reduce((sum, { key }) => sum + Math.abs(delta[key]), 0);
+  if (totalAbs <= 0) return null;
+
+  return (
+    <Box
+      sx={{
+        width: "100%",
+        height: 20,
+        display: "flex",
+        flexDirection: "row",
+        overflow: "hidden",
+        borderRadius: 1,
+        backgroundColor: "action.hover",
+      }}
+    >
+      {DELTA_SEGMENTS.map(({ key, color }) => {
+        const val = delta[key];
+        if (val === 0) return null;
+        const pct = (Math.abs(val) / totalAbs) * 100;
+        return (
+          <Tooltip key={key} title={`${key}: ${val.toFixed(2)}`}>
+            <Box
+              sx={{
+                width: `${pct}%`,
+                minWidth: val !== 0 ? 2 : 0,
+                backgroundColor: color,
+              }}
+            />
+          </Tooltip>
+        );
+      })}
+    </Box>
+  );
+};
 
 const StatusContainer: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <Box
@@ -99,6 +153,10 @@ const CalendarColumnHeader: React.FC<ColumnDataSchemaModel | ColumnTemplateProp>
     />
   );
 };
+
+const DeltaColumnHeader: React.FC<ColumnDataSchemaModel | ColumnTemplateProp> = () => (
+  <IconColumnHeader label="Δ" title="Delta (postings in period)" />
+);
 
 const AccountColumnHeader: React.FC<ColumnDataSchemaModel | ColumnTemplateProp> = () => (
   <IconColumnHeader
@@ -321,6 +379,8 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
   accountsFilter,
   additionalDates,
   sortedDates,
+  showDeltas = false,
+  deltasByAccount = {},
   groupByAccount = true,
   hideDatesWithLessThanEntries = 0,
   hideAccountsWithNoEntries = false,
@@ -397,6 +457,9 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
       };
 
       effectiveDates.forEach((date) => {
+        if (showDeltas && deltasByAccount) {
+          row[`deltas-${date}`] = deltasByAccount[account]?.[date] ?? null;
+        }
         const balance = balList.find((b) => b.date === date);
         if (!balance) {
           row[date] = null;
@@ -429,6 +492,9 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
           defaultBalanceType: defaultBalanceTypeByAccount.get(acc.account) || "",
         };
         effectiveDates.forEach((date) => {
+          if (showDeltas && deltasByAccount) {
+            row[`deltas-${date}`] = deltasByAccount[acc.account]?.[date] ?? null;
+          }
           row[date] = null;
         });
         transformedData.push(row);
@@ -516,15 +582,29 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
         readonly: true,
         ...(sortingConfig && sortingConfig.prop === "currency" ? { order: sortingConfig.order } : {}),
       },
-      ...effectiveDates.map((date) => ({
-        prop: date,
-        name: date,
-        size: 140,
-        sortable: false,
-        // columnType: "number",
-        columnTemplate: Template(CalendarColumnHeader),
-        cellTemplate: Template(BalanceCell),
-      })),
+      ...effectiveDates.flatMap((date) => {
+        const cols: (ColumnRegular | ColumnGrouping)[] = [];
+        if (showDeltas && deltasByAccount) {
+          cols.push({
+            prop: `deltas-${date}`,
+            name: `Δ ${date}`,
+            size: 120,
+            sortable: false,
+            readonly: true,
+            columnTemplate: Template(DeltaColumnHeader),
+            cellTemplate: Template(DeltaBarCell),
+          });
+        }
+        cols.push({
+          prop: date,
+          name: date,
+          size: 140,
+          sortable: false,
+          columnTemplate: Template(CalendarColumnHeader),
+          cellTemplate: Template(BalanceCell),
+        });
+        return cols;
+      }),
     ];
   }
   
@@ -612,7 +692,7 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
               const rowChanges = data[rowIndex];
               if (!rowChanges) continue;
               for (const prop of Object.keys(rowChanges)) {
-                if (readonlyProps.has(prop)) continue;
+                if (readonlyProps.has(prop) || String(prop).startsWith("deltas-")) continue;
                 const oldVal = model[prop] ?? null;
                 const newVal = rowChanges[prop] ?? null;
                 beanTabStore.addModifiedCell(

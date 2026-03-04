@@ -19,19 +19,9 @@ import { AccountFilter } from "./AccountFilter";
 import { AdditionalDatesInput } from "./AdditionalDatesInput";
 import { useBalances } from "../api/balances";
 import { usePostings, type AccountPosting } from "../api/postings";
+import type { AccountDelta } from "../types/deltas";
 import { HelpDialog } from "./HelpDialog";
 import { SettingsDialog } from "./SettingsDialog";
-
-export interface AccountDelta {
-    assetsPositive: number;
-    liabilitiesPositive: number;
-    expensesPositive: number;
-    incomePositive: number;
-    assetsNegative: number;
-    liabilitiesNegative: number;
-    expensesNegative: number;
-    incomeNegative: number;
-}
 
 function createEmptyAccountDelta(): AccountDelta {
     return {
@@ -368,11 +358,13 @@ const Dashboard: React.FC = () => {
     })();
 
     const sortedDatesKey = sortedDates.join(",");
-    useEffect(() => {
-        if (showDeltas && postingsData && sortedDates.length > 0) {
-            const deltasByAccount = computeDeltasByAccount(postingsData.postings, sortedDates);
-            console.log("deltasByAccount:", deltasByAccount);
+    const deltasByAccount = useMemo(() => {
+        if (!showDeltas || !postingsData || sortedDates.length === 0) {
+            return {};
         }
+        const result = computeDeltasByAccount(postingsData.postings, sortedDates);
+        console.log("deltasByAccount:", result);
+        return result;
     }, [showDeltas, postingsData, sortedDatesKey, sortedDates.length]);
 
     return (
@@ -439,6 +431,8 @@ const Dashboard: React.FC = () => {
                         accountsFilter={compiledAccountRegexes.valid}
                         additionalDates={beanTabStore.additionalDates}
                         sortedDates={sortedDates}
+                        showDeltas={showDeltas}
+                        deltasByAccount={deltasByAccount}
                         groupByAccount={groupByAccount}
                         hideDatesWithLessThanEntries={hideDatesWithLessThanEntries}
                         hideAccountsWithNoEntries={hideAccountsWithNoEntries}
