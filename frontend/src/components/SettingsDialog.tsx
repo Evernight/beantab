@@ -7,10 +7,14 @@ import {
     DialogContent,
     DialogTitle,
     Divider,
-    FormControlLabel,
+    FormControl,
+    InputLabel,
     List,
     ListItem,
     ListItemText,
+    MenuItem,
+    Select,
+    SelectChangeEvent,
     TextField,
     Typography,
 } from "@mui/material";
@@ -24,6 +28,11 @@ export type SettingsDialogProps = Readonly<{
     setHideDatesWithLessThanEntries: (value: number) => void;
     hideAccountsWithNoEntries: boolean;
     setHideAccountsWithNoEntries: (value: boolean) => void;
+    conversionCurrency: string;
+    setConversionCurrency: (value: string) => void;
+    operatingCurrencies: string[];
+    showDeltas: boolean;
+    setShowDeltas: (value: boolean) => void;
 }>;
 
 export const SettingsDialog: React.FC<SettingsDialogProps> = ({
@@ -35,6 +44,11 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
     setHideDatesWithLessThanEntries,
     hideAccountsWithNoEntries,
     setHideAccountsWithNoEntries,
+    conversionCurrency,
+    setConversionCurrency,
+    operatingCurrencies,
+    showDeltas,
+    setShowDeltas,
 }) => {
     return (
         <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
@@ -96,6 +110,50 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                             secondary={
                                 <Typography variant="body2" color="text.secondary">
                                     When enabled, accounts that have no balances specified on any of the dates, are hidden.
+                                </Typography>
+                            }
+                        />
+                    </ListItem>
+                    <Divider component="li" />
+                    <ListItem alignItems="flex-start">
+                        <FormControl fullWidth size="small">
+                            <InputLabel id="conversion-currency-label">Conversion Currency</InputLabel>
+                            <Select
+                                labelId="conversion-currency-label"
+                                label="Conversion Currency"
+                                value={conversionCurrency || ""}
+                                onChange={(e: SelectChangeEvent<string>) =>
+                                    setConversionCurrency(e.target.value)
+                                }
+                                displayEmpty
+                            >
+                                {operatingCurrencies.length === 0 ? (
+                                    <MenuItem value="" disabled>No operating currencies</MenuItem>
+                                ) : null}
+                                {operatingCurrencies.map((ccy) => (
+                                    <MenuItem key={ccy} value={ccy}>
+                                        {ccy}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                    </ListItem>
+                    <Divider component="li" />
+                    <ListItem
+                        alignItems="flex-start"
+                        secondaryAction={
+                            <Checkbox
+                                checked={showDeltas}
+                                onChange={(e) => setShowDeltas(e.target.checked)}
+                                inputProps={{ "aria-label": "Show deltas" }}
+                            />
+                        }
+                    >
+                        <ListItemText
+                            primary="Show Deltas"
+                            secondary={
+                                <Typography variant="body2" color="text.secondary">
+                                    When enabled, fetches postings for delta calculations.
                                 </Typography>
                             }
                         />

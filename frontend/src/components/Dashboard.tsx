@@ -10,6 +10,7 @@ import {
 } from "@mui/material";
 import HelpOutlinedIcon from "@mui/icons-material/HelpOutlined";
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
+import { useEffect } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import BeanTabGrid from "./BeanTabGrid";
 import { beanTabStore } from "../stores/beanTabStore";
@@ -17,6 +18,7 @@ import TableEditControls from "./TableEditControls";
 import { AccountFilter } from "./AccountFilter";
 import { AdditionalDatesInput } from "./AdditionalDatesInput";
 import { useBalances } from "../api/balances";
+import { usePostings } from "../api/postings";
 import { HelpDialog } from "./HelpDialog";
 import { SettingsDialog } from "./SettingsDialog";
 
@@ -65,11 +67,16 @@ type SearchParams = {
     groupByAccount?: unknown;
     hideDatesWithLessThanEntries?: unknown;
     hideAccountsWithNoEntries?: unknown;
+    conversionCurrency?: unknown;
+    showDeltas?: unknown;
 };
 
-const DEFAULT_GROUP_BY_ACCOUNT = false;
-const DEFAULT_HIDE_DATES_WITH_LESS_THAN_ENTRIES = 0;
-const DEFAULT_HIDE_ACCOUNTS_WITH_NO_ENTRIES = false;
+const SETTINGS_DEFAULTS = {
+    groupByAccount: false,
+    hideDatesWithLessThanEntries: 0,
+    hideAccountsWithNoEntries: false,
+    showDeltas: true,
+} as const;
 
 function readBooleanParam(value: unknown, fallback: boolean): boolean {
     if (typeof value === "boolean") return value;
@@ -95,21 +102,22 @@ function readNumberParam(value: unknown, fallback: number): number {
 const Dashboard: React.FC = () => {
     const navigate = useNavigate();
     const searchParams = useSearch({ strict: false }) as SearchParams;
-    const { accountFilter, sortProp, sortOrder } = searchParams;
+    const { accountFilter, sortProp, sortOrder, conversionCurrency: conversionCurrencyParam, showDeltas: showDeltasParam } =
+        searchParams;
     const { data: balancesData, isLoading, error } = useBalances();
     const [accountFilterInput, setAccountFilterInput] = useState<string>("");
     const [additionalDatesInput, setAdditionalDatesInput] = useState<string>("");
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [helpOpen, setHelpOpen] = useState(false);
     const groupByAccount = useMemo(
-        () => readBooleanParam(searchParams.groupByAccount, DEFAULT_GROUP_BY_ACCOUNT),
+        () => readBooleanParam(searchParams.groupByAccount, SETTINGS_DEFAULTS.groupByAccount),
         [searchParams.groupByAccount],
     );
     const hideDatesWithLessThanEntries = useMemo(
         () =>
             readNumberParam(
                 searchParams.hideDatesWithLessThanEntries,
-                DEFAULT_HIDE_DATES_WITH_LESS_THAN_ENTRIES,
+                SETTINGS_DEFAULTS.hideDatesWithLessThanEntries,
             ),
         [searchParams.hideDatesWithLessThanEntries],
     );
@@ -117,10 +125,29 @@ const Dashboard: React.FC = () => {
         () =>
             readBooleanParam(
                 searchParams.hideAccountsWithNoEntries,
-                DEFAULT_HIDE_ACCOUNTS_WITH_NO_ENTRIES,
+                SETTINGS_DEFAULTS.hideAccountsWithNoEntries,
             ),
         [searchParams.hideAccountsWithNoEntries],
     );
+
+    const operatingCurrencies = balancesData?.operatingCurrencies ?? [];
+    const defaultConversionCurrency = operatingCurrencies[0] ?? "";
+
+    const rawCcy = conversionCurrencyParam;
+    const conversionCurrency =
+        typeof rawCcy === "string" && rawCcy.trim().length > 0 && operatingCurrencies.includes(rawCcy)
+            ? rawCcy
+            : defaultConversionCurrency;
+
+    const showDeltas = readBooleanParam(showDeltasParam, SETTINGS_DEFAULTS.showDeltas);
+
+    const { data: postingsData } = usePostings(showDeltas ? conversionCurrency : "");
+
+    useEffect(() => {
+        if (showDeltas && postingsData) {
+            console.log("postings:", postingsData.postings);
+        }
+    }, [showDeltas, postingsData]);
 
     // Source of truth: URL query params.
     const accountFilterPatterns = useMemo(() => {
@@ -150,7 +177,7 @@ const Dashboard: React.FC = () => {
                 to: ".",
                 search: (prev: SearchState) => ({
                     ...prev,
-                    groupByAccount: value === DEFAULT_GROUP_BY_ACCOUNT ? undefined : value,
+                    groupByAccount: value === SETTINGS_DEFAULTS.groupByAccount ? undefined : value,
                 }),
                 replace: true,
             });
@@ -166,7 +193,7 @@ const Dashboard: React.FC = () => {
                 search: (prev: SearchState) => ({
                     ...prev,
                     hideDatesWithLessThanEntries:
-                        normalized === DEFAULT_HIDE_DATES_WITH_LESS_THAN_ENTRIES ? undefined : normalized,
+                        normalized === SETTINGS_DEFAULTS.hideDatesWithLessThanEntries ? undefined : normalized,
                 }),
                 replace: true,
             });
@@ -181,7 +208,36 @@ const Dashboard: React.FC = () => {
                 search: (prev: SearchState) => ({
                     ...prev,
                     hideAccountsWithNoEntries:
-                        value === DEFAULT_HIDE_ACCOUNTS_WITH_NO_ENTRIES ? undefined : value,
+                        value === SETTINGS_DEFAULTS.hideAccountsWithNoEntries ? undefined : value,
+                }),
+                replace: true,
+            });
+        },
+        [navigate],
+    );
+
+    const setConversionCurrency = useCallback(
+        (value: string) => {
+            navigate({
+                to: ".",
+                search: (prev: SearchState) => ({
+                    ...prev,
+                    conversionCurrency:
+                        value && value !== defaultConversionCurrency ? value : undefined,
+                }),
+                replace: true,
+            });
+        },
+        [navigate, defaultConversionCurrency],
+    );
+
+    const setShowDeltas = useCallback(
+        (value: boolean) => {
+            navigate({
+                to: ".",
+                search: (prev: SearchState) => ({
+                    ...prev,
+                    showDeltas: value === SETTINGS_DEFAULTS.showDeltas ? undefined : value,
                 }),
                 replace: true,
             });
@@ -315,6 +371,11 @@ const Dashboard: React.FC = () => {
                 setHideDatesWithLessThanEntries={setHideDatesWithLessThanEntries}
                 hideAccountsWithNoEntries={hideAccountsWithNoEntries}
                 setHideAccountsWithNoEntries={setHideAccountsWithNoEntries}
+                conversionCurrency={conversionCurrency}
+                setConversionCurrency={setConversionCurrency}
+                operatingCurrencies={operatingCurrencies}
+                showDeltas={showDeltas}
+                setShowDeltas={setShowDeltas}
             />
         </Box>
     );

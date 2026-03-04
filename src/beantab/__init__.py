@@ -11,8 +11,8 @@ from typing import List
 from typing import NamedTuple
 from typing import Optional
 
-from beancount import Amount
 from beancount.core import data
+from fava.core.conversion import convert_position
 from beancount.core.interpolate import BalanceError as BeancountBalanceError
 from beancount_lazy_plugins.balance_extended.common import BalanceExtendedError
 from beancount_lazy_plugins.balance_extended.common import BalanceType
@@ -290,11 +290,55 @@ class BeanTab(FavaExtensionBase):
                     }
                 )
 
+        operating_currencies = list(self.ledger.options.get("operating_currency", []) or [])
+
         return {
             "balances": balances,
             "accounts": accounts,
             "balanceErrors": balance_errors,
+            "operatingCurrencies": operating_currencies,
         }
+
+    @extension_endpoint("postings")
+    @api_response
+    def api_postings(self):
+        """Get postings from the ledger with units converted to target_currency.
+
+        Returns a flat list of AccountPosting: date, account, units (number and currency).
+        target_currency query param is required.
+        """
+        target_currency = request.args.get("target_currency")
+        if not target_currency or not target_currency.strip():
+            raise FavaAPIError("target_currency query parameter is required")
+
+        target_currency = target_currency.strip()
+        prices = self.ledger.prices
+        postings_out: List[dict] = []
+
+        for entry in self.ledger.all_entries:
+            if not isinstance(entry, data.Transaction):
+                continue
+            for posting in entry.postings:
+                if posting.units is None:
+                    continue
+                converted = convert_position(
+                    posting,
+                    target_currency,
+                    prices,
+                    entry.date,
+                )
+                postings_out.append(
+                    {
+                        "date": entry.date.isoformat(),
+                        "account": posting.account,
+                        "units": {
+                            "number": float(converted.number),
+                            "currency": converted.currency,
+                        },
+                    }
+                )
+
+        return {"postings": postings_out}
 
     @extension_endpoint("updateBalances", methods=["POST"])
     @api_response

@@ -27,6 +27,8 @@ export interface BalancesData {
   balances: BeanTabBalance[];
   accounts: BeanTabAccount[];
   balanceErrors?: BalanceErrorItem[];
+  /** Operating currencies from ledger options */
+  operatingCurrencies?: string[];
 }
 
 export function useBalances(): UseQueryResult<BalancesData> {
