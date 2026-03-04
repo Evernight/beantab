@@ -153,7 +153,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                             primary="Show Deltas"
                             secondary={
                                 <Typography variant="body2" color="text.secondary">
-                                    When enabled, fetches postings for delta calculations.
+                                    When enabled, fetches transactions for delta calculations.
                                 </Typography>
                             }
                         />

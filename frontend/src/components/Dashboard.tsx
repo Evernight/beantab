@@ -18,7 +18,7 @@ import TableEditControls from "./TableEditControls";
 import { AccountFilter } from "./AccountFilter";
 import { AdditionalDatesInput } from "./AdditionalDatesInput";
 import { useBalances } from "../api/balances";
-import { usePostings, type AccountPosting } from "../api/postings";
+import { useTransactions, type Transaction } from "../api/transactions";
 import type { AccountDelta } from "../types/deltas";
 import { HelpDialog } from "./HelpDialog";
 import { SettingsDialog } from "./SettingsDialog";
@@ -47,7 +47,7 @@ function addToDelta(delta: AccountDelta, account: string, amount: number): void 
 }
 
 function computeDeltasByAccount(
-    postings: AccountPosting[],
+    transactions: Transaction[],
     sortedDates: string[],
 ): Record<string, Record<string, AccountDelta>> {
     const deltasByAccount: Record<string, Record<string, AccountDelta>> = {};
@@ -56,22 +56,33 @@ function computeDeltasByAccount(
         const date = sortedDates[i];
         const prevDate = i > 0 ? sortedDates[i - 1] : "";
 
-        for (const p of postings) {
-            const postingDate = p.date;
+        for (const txn of transactions) {
+            const txnDate = txn.date;
             const inRange =
-                (prevDate === "" || postingDate > prevDate) && postingDate <= date;
+                (prevDate === "" || txnDate > prevDate) && txnDate <= date;
             if (!inRange) continue;
 
-            const account = p.account;
-            const amount = p.units.number;
+            // Group postings by account and sum
+            const byAccount = new Map<string, number>();
+            for (const p of txn.postings) {
+                const current = byAccount.get(p.account) ?? 0;
+                byAccount.set(p.account, current + p.units.number);
+            }
 
-            if (!deltasByAccount[account]) {
-                deltasByAccount[account] = {};
+            // For each account, add other accounts' postings to its delta via addToDelta
+            for (const [account] of byAccount) {
+                if (!deltasByAccount[account]) {
+                    deltasByAccount[account] = {};
+                }
+                if (!deltasByAccount[account][date]) {
+                    deltasByAccount[account][date] = createEmptyAccountDelta();
+                }
+                for (const [otherAccount, otherAmount] of byAccount) {
+                    if (otherAccount !== account) {
+                        addToDelta(deltasByAccount[account][date], otherAccount, otherAmount);
+                    }
+                }
             }
-            if (!deltasByAccount[account][date]) {
-                deltasByAccount[account][date] = createEmptyAccountDelta();
-            }
-            addToDelta(deltasByAccount[account][date], account, amount);
         }
     }
     return deltasByAccount;
@@ -196,7 +207,7 @@ const Dashboard: React.FC = () => {
 
     const showDeltas = readBooleanParam(showDeltasParam, SETTINGS_DEFAULTS.showDeltas);
 
-    const { data: postingsData } = usePostings(conversionCurrency, {
+    const { data: transactionsData } = useTransactions(conversionCurrency, {
         enabled: showDeltas && conversionCurrency.length > 0,
     });
 
@@ -359,13 +370,11 @@ const Dashboard: React.FC = () => {
 
     const sortedDatesKey = sortedDates.join(",");
     const deltasByAccount = useMemo(() => {
-        if (!showDeltas || !postingsData || sortedDates.length === 0) {
+        if (!showDeltas || !transactionsData || sortedDates.length === 0) {
             return {};
         }
-        const result = computeDeltasByAccount(postingsData.postings, sortedDates);
-        console.log("deltasByAccount:", result);
-        return result;
-    }, [showDeltas, postingsData, sortedDatesKey, sortedDates.length]);
+        return computeDeltasByAccount(transactionsData.transactions, sortedDates);
+    }, [showDeltas, transactionsData, sortedDatesKey, sortedDates.length]);
 
     return (
         <Box>

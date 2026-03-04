@@ -299,12 +299,12 @@ class BeanTab(FavaExtensionBase):
             "operatingCurrencies": operating_currencies,
         }
 
-    @extension_endpoint("postings")
+    @extension_endpoint("transactions")
     @api_response
-    def api_postings(self):
-        """Get postings from the ledger with units converted to target_currency.
+    def api_transactions(self):
+        """Get transactions from the ledger with postings converted to target_currency.
 
-        Returns a flat list of AccountPosting: date, account, units (number and currency).
+        Returns a list of transactions, each with date and postings (account, units).
         target_currency query param is required.
         """
         target_currency = request.args.get("target_currency")
@@ -313,11 +313,12 @@ class BeanTab(FavaExtensionBase):
 
         target_currency = target_currency.strip()
         prices = self.ledger.prices
-        postings_out: List[dict] = []
+        transactions_out: List[dict] = []
 
         for entry in self.ledger.all_entries:
             if not isinstance(entry, data.Transaction):
                 continue
+            postings_out: List[dict] = []
             for posting in entry.postings:
                 if posting.units is None:
                     continue
@@ -329,7 +330,6 @@ class BeanTab(FavaExtensionBase):
                 )
                 postings_out.append(
                     {
-                        "date": entry.date.isoformat(),
                         "account": posting.account,
                         "units": {
                             "number": float(converted.number),
@@ -337,8 +337,15 @@ class BeanTab(FavaExtensionBase):
                         },
                     }
                 )
+            if postings_out:
+                transactions_out.append(
+                    {
+                        "date": entry.date.isoformat(),
+                        "postings": postings_out,
+                    }
+                )
 
-        return {"postings": postings_out}
+        return {"transactions": transactions_out}
 
     @extension_endpoint("updateBalances", methods=["POST"])
     @api_response

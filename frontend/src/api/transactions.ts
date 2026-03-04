@@ -2,7 +2,6 @@ import { useQuery, UseQueryResult } from "@tanstack/react-query";
 import { fetchJSON } from "./api";
 
 export interface AccountPosting {
-  date: string;
   account: string;
   units: {
     number: number;
@@ -10,23 +9,28 @@ export interface AccountPosting {
   };
 }
 
-export interface PostingsData {
+export interface Transaction {
+  date: string;
   postings: AccountPosting[];
 }
 
-export function usePostings(
+export interface TransactionsData {
+  transactions: Transaction[];
+}
+
+export function useTransactions(
   targetCurrency: string,
   options?: { enabled?: boolean }
-): UseQueryResult<PostingsData> {
+): UseQueryResult<TransactionsData> {
   const params = new URLSearchParams(location.search);
   params.set("target_currency", targetCurrency);
-  const url = `postings?${params}`;
+  const url = `transactions?${params}`;
 
   const enabled = options?.enabled ?? targetCurrency.length > 0;
 
   return useQuery({
-    queryKey: ["postings", targetCurrency],
-    queryFn: () => fetchJSON<PostingsData>(url),
+    queryKey: ["transactions", targetCurrency],
+    queryFn: () => fetchJSON<TransactionsData>(url),
     enabled: enabled && targetCurrency.length > 0,
   });
 }
