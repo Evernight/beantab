@@ -11,6 +11,7 @@ import {
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
+import ButtonGroup from "@mui/material/ButtonGroup";
 import CircularProgress from "@mui/material/CircularProgress";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
@@ -53,6 +54,17 @@ interface BeanTabGridProps {
   onSortingChange?: (prop: string | null, order?: "asc" | "desc") => void;
 }
 
+const DELTA_KEY_LABEL: Record<keyof AccountDelta, string> = {
+  assetsPositive: "Assets (Transfers Out)",
+  assetsNegative: "Assets (Transfers In)",
+  liabilitiesPositive: "Liabilities (Transfers Out)",
+  liabilitiesNegative: "Liabilities (Transfers In)",
+  expensesPositive: "Expenses",
+  expensesNegative: "Expenses (Negative)",
+  incomePositive: "Income (Positive)",
+  incomeNegative: "Income",
+};
+
 const DELTA_NEGATIVE: { key: keyof AccountDelta; color: string }[] = [
   { key: "assetsNegative", color: blueGrey[500] },
   { key: "liabilitiesNegative", color: brown[500] },
@@ -73,7 +85,8 @@ const DeltaBarSegment: React.FC<{
   total: number;
   maxSum: number;
   direction: "left" | "right";
-}> = ({ delta, segments, total, maxSum, direction }) => {
+  currency?: string;
+}> = ({ delta, segments, total, maxSum, direction, currency }) => {
   if (total <= 0) return null;
   const barWidthPct = (total / maxSum) * 50;
   return (
@@ -89,13 +102,17 @@ const DeltaBarSegment: React.FC<{
         backgroundColor: "action.hover",
       }}
     >
-      <Box
+      <ButtonGroup
+        
         sx={{
           width: `${barWidthPct}%`,
           minWidth: 4,
           display: "flex",
-          flexDirection: "row",
-          overflow: "hidden",
+          height: "100%",
+          "& .MuiButtonGroup-grouped": {
+            minWidth: 0,
+            border: "none",
+          },
         }}
       >
         {segments.map(({ key, color }) => {
@@ -103,18 +120,32 @@ const DeltaBarSegment: React.FC<{
           if (val === 0) return null;
           const pct = (Math.abs(val) / total) * 100;
           return (
-            <Tooltip key={key} title={`${key}: ${val.toFixed(2)}`}>
-              <Box
+            <Tooltip
+              key={key}
+              arrow
+              title={`${DELTA_KEY_LABEL[key]}: ${val.toFixed(2)}${currency ? ` ${currency}` : ""}`}
+            >
+              <Button
+                component="span"
+                disableRipple
+                variant="contained"
                 sx={{
-                  width: `${pct}%`,
+                  flex: `${pct} 1 0`,
                   minWidth: Math.abs(val) > 0 ? 2 : 0,
+                  minHeight: 0,
+                  height: "100%",
                   backgroundColor: color,
+                  "&:hover": {
+                    backgroundColor: color,
+                    filter: "brightness(0.9)",
+                  },
+                  padding: 0,
                 }}
               />
             </Tooltip>
           );
         })}
-      </Box>
+      </ButtonGroup>
     </Box>
   );
 };
@@ -122,6 +153,9 @@ const DeltaBarSegment: React.FC<{
 const DeltaBarCell: React.FC<ColumnDataSchemaModel | ColumnTemplateProp> = (props) => {
   const delta = props.value as AccountDelta;
   if (!delta) return null;
+
+  const model = props.model as { currency?: string } | undefined;
+  const currency = model?.currency ?? "";
 
   const totalNeg = DELTA_NEGATIVE.reduce((sum, { key }) => sum + Math.abs(delta[key]), 0);
   const totalPos = DELTA_POSITIVE.reduce((sum, { key }) => sum + Math.abs(delta[key]), 0);
@@ -145,6 +179,7 @@ const DeltaBarCell: React.FC<ColumnDataSchemaModel | ColumnTemplateProp> = (prop
           total={totalNeg}
           maxSum={maxSum}
           direction="left"
+          currency={currency}
         />
       </Box>
       <Box
@@ -163,6 +198,7 @@ const DeltaBarCell: React.FC<ColumnDataSchemaModel | ColumnTemplateProp> = (prop
           total={totalPos}
           maxSum={maxSum}
           direction="right"
+          currency={currency}
         />
       </Box>
     </Box>
