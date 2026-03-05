@@ -69,6 +69,7 @@ type SearchParams = {
     hideAccountsWithNoEntries?: unknown;
     conversionCurrency?: unknown;
     showDeltas?: unknown;
+    invertSign?: unknown;
 };
 
 const SETTINGS_DEFAULTS = {
@@ -76,6 +77,7 @@ const SETTINGS_DEFAULTS = {
     hideDatesWithLessThanEntries: 0,
     hideAccountsWithNoEntries: false,
     showDeltas: true,
+    invertSign: false,
 } as const;
 
 function readBooleanParam(value: unknown, fallback: boolean): boolean {
@@ -102,7 +104,7 @@ function readNumberParam(value: unknown, fallback: number): number {
 const Dashboard: React.FC = () => {
     const navigate = useNavigate();
     const searchParams = useSearch({ strict: false }) as SearchParams;
-    const { accountFilter, sortProp, sortOrder, conversionCurrency: conversionCurrencyParam, showDeltas: showDeltasParam } =
+    const { accountFilter, sortProp, sortOrder, conversionCurrency: conversionCurrencyParam, showDeltas: showDeltasParam, invertSign: invertSignParam } =
         searchParams;
     const { data: balancesData, isLoading, error } = useBalances();
     const [accountFilterInput, setAccountFilterInput] = useState<string>("");
@@ -131,7 +133,7 @@ const Dashboard: React.FC = () => {
     );
 
     const operatingCurrencies = balancesData?.operatingCurrencies ?? [];
-    const defaultConversionCurrency = operatingCurrencies[0] ?? "";
+    const defaultConversionCurrency = "none";
 
     const rawCcy = conversionCurrencyParam;
     const conversionCurrency =
@@ -139,10 +141,11 @@ const Dashboard: React.FC = () => {
             ? "none"
             : typeof rawCcy === "string" && rawCcy.trim().length > 0 && operatingCurrencies.includes(rawCcy)
                 ? rawCcy
-                : defaultConversionCurrency || "none";
+                : defaultConversionCurrency;
     const conversionCurrencyForApi = conversionCurrency === "none" ? "" : conversionCurrency;
 
     const showDeltas = readBooleanParam(showDeltasParam, SETTINGS_DEFAULTS.showDeltas);
+    const invertSign = readBooleanParam(invertSignParam, SETTINGS_DEFAULTS.invertSign);
 
     const { data: transactionsData } = useTransactions(conversionCurrencyForApi, {
         enabled: showDeltas,
@@ -239,6 +242,20 @@ const Dashboard: React.FC = () => {
                 search: (prev: SearchState) => ({
                     ...prev,
                     showDeltas: value === SETTINGS_DEFAULTS.showDeltas ? undefined : value,
+                }),
+                replace: true,
+            });
+        },
+        [navigate],
+    );
+
+    const setInvertSign = useCallback(
+        (value: boolean) => {
+            navigate({
+                to: ".",
+                search: (prev: SearchState) => ({
+                    ...prev,
+                    invertSign: value === SETTINGS_DEFAULTS.invertSign ? undefined : value,
                 }),
                 replace: true,
             });
@@ -376,6 +393,7 @@ const Dashboard: React.FC = () => {
                         groupByAccount={groupByAccount}
                         hideDatesWithLessThanEntries={hideDatesWithLessThanEntries}
                         hideAccountsWithNoEntries={hideAccountsWithNoEntries}
+                        invertSign={invertSign}
                         sortingConfig={sortingConfig}
                         onSortingChange={setSorting}
                     />
@@ -399,6 +417,8 @@ const Dashboard: React.FC = () => {
                 operatingCurrencies={operatingCurrencies}
                 showDeltas={showDeltas}
                 setShowDeltas={setShowDeltas}
+                invertSign={invertSign}
+                setInvertSign={setInvertSign}
             />
         </Box>
     );

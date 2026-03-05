@@ -33,6 +33,8 @@ export type SettingsDialogProps = Readonly<{
     operatingCurrencies: string[];
     showDeltas: boolean;
     setShowDeltas: (value: boolean) => void;
+    invertSign: boolean;
+    setInvertSign: (value: boolean) => void;
 }>;
 
 export const SettingsDialog: React.FC<SettingsDialogProps> = ({
@@ -49,6 +51,8 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
     operatingCurrencies,
     showDeltas,
     setShowDeltas,
+    invertSign,
+    setInvertSign,
 }) => {
     return (
         <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
@@ -115,6 +119,26 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                         />
                     </ListItem>
                     <Divider component="li" />
+                    <ListItem
+                        alignItems="flex-start"
+                        secondaryAction={
+                            <Checkbox
+                                checked={showDeltas}
+                                onChange={(e) => setShowDeltas(e.target.checked)}
+                                inputProps={{ "aria-label": "Show deltas" }}
+                            />
+                        }
+                    >
+                        <ListItemText
+                            primary="Show Deltas"
+                            secondary={
+                                <Typography variant="body2" color="text.secondary">
+                                    When enabled, fetches transactions for delta calculations.
+                                </Typography>
+                            }
+                        />
+                    </ListItem>
+                    <Divider component="li" />
                     <ListItem alignItems="flex-start">
                         <FormControl fullWidth size="small">
                             <InputLabel id="conversion-currency-label">Conversion Currency</InputLabel>
@@ -146,17 +170,17 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                         alignItems="flex-start"
                         secondaryAction={
                             <Checkbox
-                                checked={showDeltas}
-                                onChange={(e) => setShowDeltas(e.target.checked)}
-                                inputProps={{ "aria-label": "Show deltas" }}
+                                checked={invertSign}
+                                onChange={(e) => setInvertSign(e.target.checked)}
+                                inputProps={{ "aria-label": "Invert sign for deltas" }}
                             />
                         }
                     >
                         <ListItemText
-                            primary="Show Deltas"
+                            primary="Invert Sign for Deltas"
                             secondary={
                                 <Typography variant="body2" color="text.secondary">
-                                    When enabled, fetches transactions for delta calculations.
+                                    When enabled, multiplies displayed delta values by -1 (so Income becomes positive and Expenses become negative)
                                 </Typography>
                             }
                         />

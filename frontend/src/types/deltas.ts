@@ -7,4 +7,6 @@ export interface AccountDelta {
   liabilitiesNegative: number;
   expensesNegative: number;
   incomeNegative: number;
+  padPositive: number;
+  padNegative: number;
 }
