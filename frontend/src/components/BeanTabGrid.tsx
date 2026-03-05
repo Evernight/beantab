@@ -21,7 +21,7 @@ import AccountTreeIcon from "@mui/icons-material/AccountTree";
 import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
 import TuneIcon from "@mui/icons-material/Tune";
 import RestoreIcon from "@mui/icons-material/Restore";
-import { blueGrey, brown, cyan, green } from "@mui/material/colors";
+import { amber, blue, blueGrey, brown, cyan, green, red, teal } from "@mui/material/colors";
 import type { BalancesData } from "../api/balances";
 import { BALANCE_TYPE_DISPLAY_MAPPING } from "../constants/balanceTypes";
 import type { AccountDelta } from "../types/deltas";
@@ -54,6 +54,24 @@ interface BeanTabGridProps {
   onSortingChange?: (prop: string | null, order?: "asc" | "desc") => void;
 }
 
+function addDay(dateStr: string): string {
+  const d = new Date(dateStr);
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+function buildJournalUrl(account: string, date: string, prevDate: string): string {
+  const basePath = window.location.pathname.replace(/\/extension\/[^/]+(\/.*)?$/, "") || "/";
+  const timeFilter =
+    prevDate === ""
+      ? `1000-01-01 to ${date}`
+      : `${addDay(prevDate)} to ${date}`;
+  const params = new URLSearchParams();
+  params.set("account", account);
+  params.set("time", timeFilter);
+  return `${window.location.origin}${basePath}/journal?${params}`;
+}
+
 const DELTA_KEY_LABEL: Record<keyof AccountDelta, string> = {
   assetsPositive: "Assets (Transfers Out)",
   assetsNegative: "Assets (Transfers In)",
@@ -65,30 +83,31 @@ const DELTA_KEY_LABEL: Record<keyof AccountDelta, string> = {
   incomeNegative: "Income",
 };
 
-const DELTA_NEGATIVE: { key: keyof AccountDelta; color: string }[] = [
-  { key: "assetsNegative", color: blueGrey[500] },
-  { key: "liabilitiesNegative", color: brown[500] },
-  { key: "expensesNegative", color: green[500] },
-  { key: "incomeNegative", color: cyan[500] },
+const DELTA_NEGATIVE: { key: keyof AccountDelta; color: string; textColor: string }[] = [
+  { key: "assetsNegative", color: blue[300], textColor: blue[700] },
+  { key: "liabilitiesNegative", color: teal[300], textColor: teal[700] },
+  { key: "expensesNegative", color: amber[300], textColor: amber[700] },
+  { key: "incomeNegative", color: green[300], textColor: green[700] },
 ];
 
-const DELTA_POSITIVE: { key: keyof AccountDelta; color: string }[] = [
-  { key: "assetsPositive", color: blueGrey[500] },
-  { key: "liabilitiesPositive", color: brown[500] },
-  { key: "expensesPositive", color: green[500] },
-  { key: "incomePositive", color: cyan[500] },
+const DELTA_POSITIVE: { key: keyof AccountDelta; color: string; textColor: string }[] = [
+  { key: "assetsPositive", color: blue[600], textColor: blue[900] },
+  { key: "liabilitiesPositive", color: teal[600], textColor: teal[900] },
+  { key: "expensesPositive", color: amber[600], textColor: amber[900] },
+  { key: "incomePositive", color: green[600], textColor: green[900] },
 ];
 
 const DeltaBarSegment: React.FC<{
   delta: AccountDelta;
-  segments: { key: keyof AccountDelta; color: string }[];
+  segments: { key: keyof AccountDelta; color: string; textColor: string }[];
   total: number;
   maxSum: number;
   direction: "left" | "right";
   currency?: string;
-}> = ({ delta, segments, total, maxSum, direction, currency }) => {
+  journalUrl?: string;
+}> = ({ delta, segments, total, maxSum, direction, currency, journalUrl }) => {
   if (total <= 0) return null;
-  const barWidthPct = (total / maxSum) * 50;
+  const barWidthPct = (total / maxSum) * 100;
   return (
     <Box
       sx={{
@@ -103,7 +122,6 @@ const DeltaBarSegment: React.FC<{
       }}
     >
       <ButtonGroup
-        
         sx={{
           width: `${barWidthPct}%`,
           minWidth: 4,
@@ -115,10 +133,11 @@ const DeltaBarSegment: React.FC<{
           },
         }}
       >
-        {segments.map(({ key, color }) => {
+        {segments.map(({ key, color, textColor }) => {
           const val = delta[key];
           if (val === 0) return null;
           const pct = (Math.abs(val) / total) * 100;
+          const showText = pct >= 15;
           return (
             <Tooltip
               key={key}
@@ -126,8 +145,10 @@ const DeltaBarSegment: React.FC<{
               title={`${DELTA_KEY_LABEL[key]}: ${val.toFixed(2)}${currency ? ` ${currency}` : ""}`}
             >
               <Button
-                component="span"
-                disableRipple
+                component={journalUrl ? "a" : "span"}
+                href={journalUrl}
+                target={journalUrl ? "_blank" : undefined}
+                rel={journalUrl ? "noopener noreferrer" : undefined}
                 variant="contained"
                 sx={{
                   flex: `${pct} 1 0`,
@@ -135,13 +156,19 @@ const DeltaBarSegment: React.FC<{
                   minHeight: 0,
                   height: "100%",
                   backgroundColor: color,
+                  color: `${textColor} !important`,
                   "&:hover": {
                     backgroundColor: color,
+                    color: `${textColor} !important`,
                     filter: "brightness(0.9)",
                   },
-                  padding: 0,
+                  padding: "0 4px",
+                  fontSize: "0.7rem",
+                  overflow: "hidden",
                 }}
-              />
+              >
+                {showText ? val.toFixed(0) : null}
+              </Button>
             </Tooltip>
           );
         })}
@@ -150,12 +177,22 @@ const DeltaBarSegment: React.FC<{
   );
 };
 
-const DeltaBarCell: React.FC<ColumnDataSchemaModel | ColumnTemplateProp> = (props) => {
+type DeltaBarCellProps = (ColumnDataSchemaModel | ColumnTemplateProp) & {
+  date?: string;
+  prevDate?: string;
+};
+
+const DeltaBarCell: React.FC<DeltaBarCellProps> = (props) => {
   const delta = props.value as AccountDelta;
   if (!delta) return null;
 
-  const model = props.model as { currency?: string } | undefined;
+  const model = props.model as { account?: string; currency?: string } | undefined;
+  const account = model?.account ?? "";
   const currency = model?.currency ?? "";
+  const date = props.date ?? "";
+  const prevDate = props.prevDate ?? "";
+  const journalUrl =
+    account && date ? buildJournalUrl(account, date, prevDate) : undefined;
 
   const totalNeg = DELTA_NEGATIVE.reduce((sum, { key }) => sum + Math.abs(delta[key]), 0);
   const totalPos = DELTA_POSITIVE.reduce((sum, { key }) => sum + Math.abs(delta[key]), 0);
@@ -180,6 +217,7 @@ const DeltaBarCell: React.FC<ColumnDataSchemaModel | ColumnTemplateProp> = (prop
           maxSum={maxSum}
           direction="left"
           currency={currency}
+          journalUrl={journalUrl}
         />
       </Box>
       <Box
@@ -187,7 +225,7 @@ const DeltaBarCell: React.FC<ColumnDataSchemaModel | ColumnTemplateProp> = (prop
           width: "3px",
           height: "80%",
           alignSelf: "center",
-          mx: 0.5,
+          mx: 0.1,
           backgroundColor: "divider",
         }}
       />
@@ -199,6 +237,7 @@ const DeltaBarCell: React.FC<ColumnDataSchemaModel | ColumnTemplateProp> = (prop
           maxSum={maxSum}
           direction="right"
           currency={currency}
+          journalUrl={journalUrl}
         />
       </Box>
     </Box>
@@ -256,8 +295,31 @@ const CalendarColumnHeader: React.FC<ColumnDataSchemaModel | ColumnTemplateProp>
   );
 };
 
-const DeltaColumnHeader: React.FC<ColumnDataSchemaModel | ColumnTemplateProp> = () => (
-  <IconColumnHeader label="Δ" title="Delta (postings in period)" />
+const DeltaColumnHeader: React.FC<
+  (ColumnDataSchemaModel | ColumnTemplateProp) & { date?: string; prevDate?: string }
+> = ({ date = "", prevDate = "" }) => (
+  <Box
+    sx={{
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      gap: 0,
+    }}
+  >
+    {prevDate ? (
+      <Typography component="span" variant="caption" sx={{ fontSize: "0.65rem", lineHeight: 1.1 }}>
+        {prevDate}
+      </Typography>
+    ) : null}
+    <Typography component="span" variant="body2">
+    ↔
+    </Typography>
+    {date ? (
+      <Typography component="span" variant="caption" sx={{ fontSize: "0.65rem", lineHeight: 1.1 }}>
+        {date}
+      </Typography>
+    ) : null}
+  </Box>
 );
 
 const AccountColumnHeader: React.FC<ColumnDataSchemaModel | ColumnTemplateProp> = () => (
@@ -686,17 +748,24 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
         readonly: true,
         ...(sortingConfig && sortingConfig.prop === "currency" ? { order: sortingConfig.order } : {}),
       },
-      ...effectiveDates.flatMap((date) => {
+      ...effectiveDates.flatMap((date, dateIndex) => {
+        const prevDate = dateIndex > 0 ? effectiveDates[dateIndex - 1] : "";
         const cols: (ColumnRegular | ColumnGrouping)[] = [];
         if (showDeltas && deltasByAccount) {
+          const DeltaBarCellWithDate = (p: ColumnDataSchemaModel | ColumnTemplateProp) => (
+            <DeltaBarCell {...p} date={date} prevDate={prevDate} />
+          );
+          const DeltaColumnHeaderWithDate = (p: ColumnDataSchemaModel | ColumnTemplateProp) => (
+            <DeltaColumnHeader {...p} date={date} prevDate={prevDate} />
+          );
           cols.push({
             prop: `deltas-${date}`,
             name: `Δ ${date}`,
-            size: 120,
+            size: 180,
             sortable: false,
             readonly: true,
-            columnTemplate: Template(DeltaColumnHeader),
-            cellTemplate: Template(DeltaBarCell),
+            columnTemplate: Template(DeltaColumnHeaderWithDate),
+            cellTemplate: Template(DeltaBarCellWithDate),
           });
         }
         cols.push({
