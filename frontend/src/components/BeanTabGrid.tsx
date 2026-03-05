@@ -22,7 +22,7 @@ import AccountTreeIcon from "@mui/icons-material/AccountTree";
 import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
 import TuneIcon from "@mui/icons-material/Tune";
 import RestoreIcon from "@mui/icons-material/Restore";
-import { amber, blue, blueGrey, brown, cyan, green, red, teal } from "@mui/material/colors";
+import { amber, blue, blueGrey, brown, cyan, green, orange, red, teal } from "@mui/material/colors";
 import type { BalancesData } from "../api/balances";
 import type { Transaction } from "../api/transactions";
 import { BALANCE_TYPE_DISPLAY_MAPPING } from "../constants/balanceTypes";
@@ -48,13 +48,83 @@ interface BeanTabGridProps {
   additionalDates?: string[];
   sortedDates: string[];
   showDeltas?: boolean;
-  deltasByAccount?: Record<string, Record<string, AccountDelta>>;
   transactions?: Transaction[];
   groupByAccount?: boolean;
   hideDatesWithLessThanEntries?: number;
   hideAccountsWithNoEntries?: boolean;
   sortingConfig?: { prop: string | null, order: "asc" | "desc" | undefined };
   onSortingChange?: (prop: string | null, order?: "asc" | "desc") => void;
+}
+
+function createEmptyAccountDelta(): AccountDelta {
+  return {
+    assetsPositive: 0,
+    liabilitiesPositive: 0,
+    expensesPositive: 0,
+    incomePositive: 0,
+    assetsNegative: 0,
+    liabilitiesNegative: 0,
+    expensesNegative: 0,
+    incomeNegative: 0,
+  };
+}
+
+function addToDelta(delta: AccountDelta, account: string, amount: number): void {
+  const top = account.split(":")[0];
+  const isPositive = amount >= 0;
+  const suffix = isPositive ? "Positive" : "Negative";
+  const key = `${top.toLowerCase()}${suffix}` as keyof AccountDelta;
+  if (key in delta) {
+    delta[key] += amount;
+  }
+}
+
+function computeDeltasByAccount(
+  transactions: Transaction[],
+  sortedDates: string[],
+): Record<string, Record<string, AccountDelta>> {
+  const deltasByAccount: Record<string, Record<string, AccountDelta>> = {};
+
+  for (let i = 0; i < sortedDates.length; i++) {
+    const date = sortedDates[i];
+    const prevDate = i > 0 ? sortedDates[i - 1] : "";
+
+    for (const txn of transactions) {
+      const txnDate = txn.date;
+      const inRange =
+        (prevDate === "" || txnDate > prevDate) && txnDate <= date;
+      if (!inRange) continue;
+
+      const byAccountAndCurrency = new Map<string, { account: string; amount: number }>();
+      for (const p of txn.postings) {
+        const key = `${p.account}|${p.units.currency}`;
+        const current = byAccountAndCurrency.get(key);
+        const amount = p.units.number;
+        if (current) {
+          byAccountAndCurrency.set(key, { account: p.account, amount: current.amount + amount });
+        } else {
+          byAccountAndCurrency.set(key, { account: p.account, amount });
+        }
+      }
+
+      for (const [key] of byAccountAndCurrency) {
+        if (!deltasByAccount[key]) {
+          deltasByAccount[key] = {};
+        }
+        if (!deltasByAccount[key][date]) {
+          deltasByAccount[key][date] = createEmptyAccountDelta();
+        }
+        const keyCurrency = key.split("|")[1];
+        for (const [otherKey, other] of byAccountAndCurrency) {
+          const otherCurrency = otherKey.split("|")[1];
+          if (otherKey !== key && otherCurrency === keyCurrency) {
+            addToDelta(deltasByAccount[key][date], other.account, other.amount);
+          }
+        }
+      }
+    }
+  }
+  return deltasByAccount;
 }
 
 function addDay(dateStr: string): string {
@@ -89,14 +159,14 @@ const DELTA_KEY_LABEL: Record<keyof AccountDelta, string> = {
 const DELTA_NEGATIVE: { key: keyof AccountDelta; color: string; textColor: string }[] = [
   { key: "assetsNegative", color: blue[300], textColor: blue[700] },
   { key: "liabilitiesNegative", color: teal[300], textColor: teal[700] },
-  { key: "expensesNegative", color: amber[300], textColor: amber[700] },
+  { key: "expensesNegative", color: orange[300], textColor: orange[700] },
   { key: "incomeNegative", color: green[300], textColor: green[700] },
 ];
 
 const DELTA_POSITIVE: { key: keyof AccountDelta; color: string; textColor: string }[] = [
   { key: "assetsPositive", color: blue[600], textColor: blue[900] },
   { key: "liabilitiesPositive", color: teal[600], textColor: teal[900] },
-  { key: "expensesPositive", color: amber[600], textColor: amber[900] },
+  { key: "expensesPositive", color: orange[600], textColor: orange[900] },
   { key: "incomePositive", color: green[600], textColor: green[900] },
 ];
 
@@ -114,6 +184,22 @@ function filterTransactionsForPeriod(
     return txn.postings.some(
       (p) => p.account === account && p.units.currency === currency,
     );
+  });
+}
+
+function transactionHasPostingForSegment(
+  txn: Transaction,
+  currency: string,
+  segmentKey: keyof AccountDelta,
+): boolean {
+  const wantsPositive = segmentKey.endsWith("Positive");
+  const typeMatch = segmentKey.replace(/Positive|Negative$/, ""); // "assets", "liabilities", etc.
+  return txn.postings.some((p) => {
+    if (p.units.currency !== currency) return false;
+    const topLevel = p.account.split(":")[0].toLowerCase();
+    if (topLevel !== typeMatch) return false;
+    const isPositive = p.units.number > 0;
+    return wantsPositive ? isPositive : !isPositive;
   });
 }
 
@@ -162,7 +248,7 @@ const DeltaBarSegment: React.FC<{
           if (val === 0) return null;
           const pct = (Math.abs(val) / total) * 100;
           const showText = pct >= 15;
-          const filteredTxns =
+          const baseTxns =
             account && periodDate
               ? filterTransactionsForPeriod(
                   transactions,
@@ -172,6 +258,9 @@ const DeltaBarSegment: React.FC<{
                   prevDate ?? "",
                 )
               : [];
+          const filteredTxns = baseTxns.filter((txn) =>
+            transactionHasPostingForSegment(txn, currency ?? "", key),
+          );
           const tooltipContent = (
             <Box sx={{ p: 0.5, maxWidth: 450, maxHeight: 360, overflow: "auto" }}>
               <Typography variant="caption" component="div" sx={{ fontWeight: 600, mb: 0.5 }}>
@@ -316,15 +405,33 @@ const DeltaBarCell: React.FC<DeltaBarCellProps> = (props) => {
           {...segmentProps}
         />
       </Box>
-      <Box
-        sx={{
-          width: "3px",
-          height: "80%",
-          alignSelf: "center",
-          mx: 0.1,
-          backgroundColor: "divider",
-        }}
-      />
+      <Tooltip
+        arrow
+        title={
+          <Box component="span" sx={{ display: "block", fontSize: "0.75rem" }}>
+            {[...DELTA_NEGATIVE, ...DELTA_POSITIVE].map(({ key }) => {
+              const val = delta[key];
+              if (val === 0) return null;
+              return (
+                <div key={key}>
+                  {DELTA_KEY_LABEL[key]}: {val.toFixed(2)}
+                  {currency ? ` ${currency}` : ""}
+                </div>
+              );
+            })}
+          </Box>
+        }
+      >
+        <Box
+          sx={{
+            width: "3px",
+            height: "80%",
+            alignSelf: "center",
+            mx: 0.1,
+            backgroundColor: "divider",
+          }}
+        />
+      </Tooltip>
       <Box sx={{ flex: 1, overflow: "hidden", display: "flex", justifyContent: "flex-start" }}>
         <DeltaBarSegment
           delta={delta}
@@ -639,7 +746,6 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
   additionalDates,
   sortedDates,
   showDeltas = false,
-  deltasByAccount = {},
   transactions = [],
   groupByAccount = true,
   hideDatesWithLessThanEntries = 0,
@@ -660,21 +766,18 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
     return { balanceErrorKeys: keys, balanceErrorMessages: messages };
   }, [balancesData?.balanceErrors]);
 
-  if (balancesData) {
-    const { balances, accounts } = balancesData;
-    const additionalDatesSet = new Set(
-      (additionalDates ?? []).map((d) => d.trim()).filter((d) => d.length > 0),
-    );
-
-    const filteredBalancesData =
+  const effectiveDates = useMemo(() => {
+    if (!balancesData) return [];
+    const { balances } = balancesData;
+    const filtered =
       accountsFilter && accountsFilter.length > 0
         ? balances.filter((b) => accountsFilter.some((re) => re.test(b.account)))
         : balances;
-
-
-    // Compute number of distinct accounts with a value per date (dedupe currencies)
+    const additionalDatesSet = new Set(
+      (additionalDates ?? []).map((d) => d.trim()).filter((d) => d.length > 0),
+    );
     const accountsByDate = new Map<string, Set<string>>();
-    for (const b of filteredBalancesData) {
+    for (const b of filtered) {
       if (b.number === null || b.number === undefined) continue;
       let s = accountsByDate.get(b.date);
       if (!s) {
@@ -683,15 +786,34 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
       }
       s.add(b.account);
     }
+    return hideDatesWithLessThanEntries <= 0
+      ? sortedDates
+      : sortedDates.filter((date) => {
+          if (additionalDatesSet.has(date)) return true;
+          const entryCount = accountsByDate.get(date)?.size ?? 0;
+          return entryCount >= hideDatesWithLessThanEntries;
+        });
+  }, [
+    balancesData,
+    accountsFilter,
+    additionalDates,
+    sortedDates,
+    hideDatesWithLessThanEntries,
+  ]);
 
-    const effectiveDates =
-      hideDatesWithLessThanEntries <= 0
-        ? sortedDates
-        : sortedDates.filter((date) => {
-            if (additionalDatesSet.has(date)) return true;
-            const entryCount = accountsByDate.get(date)?.size ?? 0;
-            return entryCount >= hideDatesWithLessThanEntries;
-          });
+  const deltasByAccount = useMemo(() => {
+    if (!showDeltas || !transactions.length || effectiveDates.length === 0) {
+      return {};
+    }
+    return computeDeltasByAccount(transactions, effectiveDates);
+  }, [showDeltas, transactions, effectiveDates]);
+
+  if (balancesData) {
+    const { balances, accounts } = balancesData;
+    const filteredBalancesData =
+      accountsFilter && accountsFilter.length > 0
+        ? balances.filter((b) => accountsFilter.some((re) => re.test(b.account)))
+        : balances;
 
     const defaultBalanceTypeByAccount = new Map(
       accounts.map((account) => [account.account, account.defaultBalanceType]),

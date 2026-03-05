@@ -18,81 +18,9 @@ import TableEditControls from "./TableEditControls";
 import { AccountFilter } from "./AccountFilter";
 import { AdditionalDatesInput } from "./AdditionalDatesInput";
 import { useBalances } from "../api/balances";
-import { useTransactions, type Transaction } from "../api/transactions";
-import type { AccountDelta } from "../types/deltas";
+import { useTransactions } from "../api/transactions";
 import { HelpDialog } from "./HelpDialog";
 import { SettingsDialog } from "./SettingsDialog";
-
-function createEmptyAccountDelta(): AccountDelta {
-    return {
-        assetsPositive: 0,
-        liabilitiesPositive: 0,
-        expensesPositive: 0,
-        incomePositive: 0,
-        assetsNegative: 0,
-        liabilitiesNegative: 0,
-        expensesNegative: 0,
-        incomeNegative: 0,
-    };
-}
-
-function addToDelta(delta: AccountDelta, account: string, amount: number): void {
-    const top = account.split(":")[0];
-    const isPositive = amount >= 0;
-    const suffix = isPositive ? "Positive" : "Negative";
-    const key = `${top.toLowerCase()}${suffix}` as keyof AccountDelta;
-    if (key in delta) {
-        delta[key] += amount;
-    }
-}
-
-function computeDeltasByAccount(
-    transactions: Transaction[],
-    sortedDates: string[],
-): Record<string, Record<string, AccountDelta>> {
-    const deltasByAccount: Record<string, Record<string, AccountDelta>> = {};
-
-    for (let i = 0; i < sortedDates.length; i++) {
-        const date = sortedDates[i];
-        const prevDate = i > 0 ? sortedDates[i - 1] : "";
-
-        for (const txn of transactions) {
-            const txnDate = txn.date;
-            const inRange =
-                (prevDate === "" || txnDate > prevDate) && txnDate <= date;
-            if (!inRange) continue;
-
-            // Group postings by account and currency, sum
-            const byAccountCurrency = new Map<string, { account: string; amount: number }>();
-            for (const p of txn.postings) {
-                const key = `${p.account}|${p.units.currency}`;
-                const current = byAccountCurrency.get(key);
-                const amount = p.units.number;
-                if (current) {
-                    byAccountCurrency.set(key, { account: p.account, amount: current.amount + amount });
-                } else {
-                    byAccountCurrency.set(key, { account: p.account, amount });
-                }
-            }
-
-            // For each account+currency, add other postings' amounts to its delta via addToDelta
-            for (const [key] of byAccountCurrency) {
-                if (!deltasByAccount[key]) {
-                    deltasByAccount[key] = {};
-                }
-                if (!deltasByAccount[key][date]) {
-                    deltasByAccount[key][date] = createEmptyAccountDelta();
-                }
-                for (const [otherKey, other] of byAccountCurrency) {
-                    if (otherKey !== key) {
-                        addToDelta(deltasByAccount[key][date], other.account, other.amount);
-                    }
-                }
-            }
-        }
-    }
-    return deltasByAccount;
-}
 
 function normalizeList(values: string[]): string[] {
     const seen = new Set<string>();
@@ -379,14 +307,6 @@ const Dashboard: React.FC = () => {
         return Array.from(allDates).sort();
     })();
 
-    const sortedDatesKey = sortedDates.join(",");
-    const deltasByAccount = useMemo(() => {
-        if (!showDeltas || !transactionsData || sortedDates.length === 0) {
-            return {};
-        }
-        return computeDeltasByAccount(transactionsData.transactions, sortedDates);
-    }, [showDeltas, transactionsData, sortedDatesKey, sortedDates.length]);
-
     return (
         <Box>
             <Card>
@@ -452,7 +372,6 @@ const Dashboard: React.FC = () => {
                         additionalDates={beanTabStore.additionalDates}
                         sortedDates={sortedDates}
                         showDeltas={showDeltas}
-                        deltasByAccount={deltasByAccount}
                         transactions={transactionsData?.transactions}
                         groupByAccount={groupByAccount}
                         hideDatesWithLessThanEntries={hideDatesWithLessThanEntries}
