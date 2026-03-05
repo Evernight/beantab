@@ -344,6 +344,7 @@ class BeanTab(FavaExtensionBase):
                 transactions_out.append(
                     {
                         "date": entry.date.isoformat(),
+                        "narration": entry.narration or "",
                         "postings": postings_out,
                     }
                 )

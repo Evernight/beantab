@@ -11,6 +11,7 @@ export interface AccountPosting {
 
 export interface Transaction {
   date: string;
+  narration?: string;
   postings: AccountPosting[];
 }
 

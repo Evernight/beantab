@@ -14,6 +14,7 @@ import Button from "@mui/material/Button";
 import ButtonGroup from "@mui/material/ButtonGroup";
 import CircularProgress from "@mui/material/CircularProgress";
 import IconButton from "@mui/material/IconButton";
+import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
@@ -23,6 +24,7 @@ import TuneIcon from "@mui/icons-material/Tune";
 import RestoreIcon from "@mui/icons-material/Restore";
 import { amber, blue, blueGrey, brown, cyan, green, red, teal } from "@mui/material/colors";
 import type { BalancesData } from "../api/balances";
+import type { Transaction } from "../api/transactions";
 import { BALANCE_TYPE_DISPLAY_MAPPING } from "../constants/balanceTypes";
 import type { AccountDelta } from "../types/deltas";
 import { BalanceTypeChip } from "./BalanceTypeChip";
@@ -47,6 +49,7 @@ interface BeanTabGridProps {
   sortedDates: string[];
   showDeltas?: boolean;
   deltasByAccount?: Record<string, Record<string, AccountDelta>>;
+  transactions?: Transaction[];
   groupByAccount?: boolean;
   hideDatesWithLessThanEntries?: number;
   hideAccountsWithNoEntries?: boolean;
@@ -97,6 +100,23 @@ const DELTA_POSITIVE: { key: keyof AccountDelta; color: string; textColor: strin
   { key: "incomePositive", color: green[600], textColor: green[900] },
 ];
 
+function filterTransactionsForPeriod(
+  transactions: Transaction[],
+  account: string,
+  currency: string,
+  date: string,
+  prevDate: string,
+): Transaction[] {
+  return transactions.filter((txn) => {
+    const inRange =
+      (prevDate === "" || txn.date > prevDate) && txn.date <= date;
+    if (!inRange) return false;
+    return txn.postings.some(
+      (p) => p.account === account && p.units.currency === currency,
+    );
+  });
+}
+
 const DeltaBarSegment: React.FC<{
   delta: AccountDelta;
   segments: { key: keyof AccountDelta; color: string; textColor: string }[];
@@ -105,7 +125,11 @@ const DeltaBarSegment: React.FC<{
   direction: "left" | "right";
   currency?: string;
   journalUrl?: string;
-}> = ({ delta, segments, total, maxSum, direction, currency, journalUrl }) => {
+  account?: string;
+  date?: string;
+  prevDate?: string;
+  transactions?: Transaction[];
+}> = ({ delta, segments, total, maxSum, direction, currency, journalUrl, account = "", date: periodDate = "", prevDate = "", transactions = [] }) => {
   if (total <= 0) return null;
   const barWidthPct = (total / maxSum) * 100;
   return (
@@ -138,17 +162,79 @@ const DeltaBarSegment: React.FC<{
           if (val === 0) return null;
           const pct = (Math.abs(val) / total) * 100;
           const showText = pct >= 15;
+          const filteredTxns =
+            account && periodDate
+              ? filterTransactionsForPeriod(
+                  transactions,
+                  account,
+                  currency ?? "",
+                  periodDate,
+                  prevDate ?? "",
+                )
+              : [];
+          const tooltipContent = (
+            <Box sx={{ p: 0.5, maxWidth: 450, maxHeight: 360, overflow: "auto" }}>
+              <Typography variant="caption" component="div" sx={{ fontWeight: 600, mb: 0.5 }}>
+                {DELTA_KEY_LABEL[key]}: {val.toFixed(2)}
+                {currency ? ` ${currency}` : ""}
+              </Typography>
+              {filteredTxns.length > 0 && (
+                <>
+                  <Typography variant="caption" component="div" sx={{ mb: 0.5 }}>
+                    Transactions ({filteredTxns.length} total):
+                  </Typography>
+                  <Box component="ul" sx={{ m: 0, pl: 2, fontSize: "0.75rem" }}>
+                    {filteredTxns.slice(0, 10).map((txn, i) => (
+                      <li key={i}>
+                        <span style={{ fontSize: "0.7rem" }}>
+                          <strong>{txn.date}</strong>
+                          {txn.narration ? (
+                            <>
+                              {" — "}
+                              <strong style={{ fontStyle: "italic" }}>{txn.narration}</strong>
+                            </>
+                          ) : null}
+                        </span>
+                        <Box component="ul" sx={{ m: 0, pl: 1.5, listStyle: "none" }}>
+                          {txn.postings.map((p, j) => (
+                            <li key={j}>
+                              {p.account}: {p.units.number.toFixed(2)} {p.units.currency}
+                            </li>
+                          ))}
+                        </Box>
+                      </li>
+                    ))}
+                    {filteredTxns.length > 10 && (
+                      <li>…and {filteredTxns.length - 10} more transaction{filteredTxns.length - 10 !== 1 ? "s" : ""}</li>
+                    )}
+                  </Box>
+                </>
+              )}
+              {journalUrl && (
+                <Link
+                  href={journalUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  sx={{ fontSize: "0.75rem", display: "block", mt: 0.5 }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  Open in journal
+                </Link>
+              )}
+            </Box>
+          );
           return (
             <Tooltip
               key={key}
               arrow
-              title={`${DELTA_KEY_LABEL[key]}: ${val.toFixed(2)}${currency ? ` ${currency}` : ""}`}
+              title={tooltipContent}
+              leaveDelay={400}
+              slotProps={{
+                popper: { sx: { pointerEvents: "auto" } },
+              }}
             >
               <Button
-                component={journalUrl ? "a" : "span"}
-                href={journalUrl}
-                target={journalUrl ? "_blank" : undefined}
-                rel={journalUrl ? "noopener noreferrer" : undefined}
+                component="span"
                 variant="contained"
                 sx={{
                   flex: `${pct} 1 0`,
@@ -180,6 +266,7 @@ const DeltaBarSegment: React.FC<{
 type DeltaBarCellProps = (ColumnDataSchemaModel | ColumnTemplateProp) & {
   date?: string;
   prevDate?: string;
+  addition?: { transactions?: Transaction[] };
 };
 
 const DeltaBarCell: React.FC<DeltaBarCellProps> = (props) => {
@@ -191,6 +278,7 @@ const DeltaBarCell: React.FC<DeltaBarCellProps> = (props) => {
   const currency = model?.currency ?? "";
   const date = props.date ?? "";
   const prevDate = props.prevDate ?? "";
+  const transactions = props.addition?.transactions ?? [];
   const journalUrl =
     account && date ? buildJournalUrl(account, date, prevDate) : undefined;
 
@@ -198,6 +286,15 @@ const DeltaBarCell: React.FC<DeltaBarCellProps> = (props) => {
   const totalPos = DELTA_POSITIVE.reduce((sum, { key }) => sum + Math.abs(delta[key]), 0);
   const maxSum = Math.max(totalNeg, totalPos, 1);
   if (totalNeg <= 0 && totalPos <= 0) return null;
+
+  const segmentProps = {
+    account,
+    date,
+    prevDate,
+    transactions,
+    currency,
+    journalUrl,
+  };
   return (
     <Box
       sx={{
@@ -216,8 +313,7 @@ const DeltaBarCell: React.FC<DeltaBarCellProps> = (props) => {
           total={totalNeg}
           maxSum={maxSum}
           direction="left"
-          currency={currency}
-          journalUrl={journalUrl}
+          {...segmentProps}
         />
       </Box>
       <Box
@@ -236,8 +332,7 @@ const DeltaBarCell: React.FC<DeltaBarCellProps> = (props) => {
           total={totalPos}
           maxSum={maxSum}
           direction="right"
-          currency={currency}
-          journalUrl={journalUrl}
+          {...segmentProps}
         />
       </Box>
     </Box>
@@ -545,6 +640,7 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
   sortedDates,
   showDeltas = false,
   deltasByAccount = {},
+  transactions = [],
   groupByAccount = true,
   hideDatesWithLessThanEntries = 0,
   hideAccountsWithNoEntries = false,
@@ -830,7 +926,7 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
           }
           source={transformedData}
           columns={columns}
-          additionalData={{ balanceErrorKeys, balanceErrorMessages }}
+          additionalData={{ balanceErrorKeys, balanceErrorMessages, transactions }}
           hideAttribution={true}
           theme={isDarkMode ? "darkCompact" : "compact"}
           resize={true}

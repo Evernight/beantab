@@ -453,6 +453,7 @@ const Dashboard: React.FC = () => {
                         sortedDates={sortedDates}
                         showDeltas={showDeltas}
                         deltasByAccount={deltasByAccount}
+                        transactions={transactionsData?.transactions}
                         groupByAccount={groupByAccount}
                         hideDatesWithLessThanEntries={hideDatesWithLessThanEntries}
                         hideAccountsWithNoEntries={hideAccountsWithNoEntries}
