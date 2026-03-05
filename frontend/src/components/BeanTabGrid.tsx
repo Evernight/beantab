@@ -13,6 +13,7 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import ButtonGroup from "@mui/material/ButtonGroup";
 import CircularProgress from "@mui/material/CircularProgress";
+import Divider from "@mui/material/Divider";
 import IconButton from "@mui/material/IconButton";
 import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
@@ -118,7 +119,7 @@ function computeDeltasByAccount(
           deltasByAccount[key][date] = createEmptyAccountDelta();
         }
         const keyCurrency = key.split("|")[1];
-        const isPadTxn = txn.narration?.includes("(Padding inserted") ?? false;
+        const isPadTxn = txn.narration?.includes(PADDING_NARRATION) ?? false;
         for (const [otherKey, other] of byAccountAndCurrency) {
           const otherCurrency = otherKey.split("|")[1];
           if (otherKey !== key && otherCurrency === keyCurrency) {
@@ -193,7 +194,7 @@ const DELTA_NEGATIVE: { key: keyof AccountDelta; color: string; textColor: strin
 
 const DELTA_POSITIVE: { key: keyof AccountDelta; color: string; textColor: string }[] = [
   { key: "assetsPositive", color: blue[600], textColor: blue[900] },
-  { key: "liabilitiesPositive", color: teal[600], textColor: teal[900] },
+  { key: "liabilitiesPositive", color: teal[500], textColor: teal[900] },
   { key: "expensesPositive", color: lime[600], textColor: lime[900] },
   { key: "incomePositive", color: green[600], textColor: green[900] },
   { key: "padPositive", color: pink[600], textColor: pink[900] },
@@ -216,7 +217,7 @@ function filterTransactionsForPeriod(
   });
 }
 
-const PADDING_NARRATION = "(Padding inserted";
+const PADDING_NARRATION = "Padding";
 
 function transactionHasPostingForSegment(
   txn: Transaction,
@@ -268,7 +269,6 @@ const DeltaBarSegment: React.FC<{
         justifyContent: "flex-start",
         alignItems: "stretch",
         overflow: "hidden",
-        backgroundColor: "action.hover",
       }}
     >
       <ButtonGroup
@@ -466,15 +466,7 @@ const DeltaBarCell: React.FC<DeltaBarCellProps> = (props) => {
           </Box>
         }
       >
-        <Box
-          sx={{
-            width: "7px",
-            height: "80%",
-            alignSelf: "center",
-            mx: 0.1,
-            backgroundColor: "divider",
-          }}
-        />
+        <Divider orientation="vertical" flexItem sx={{ height: "80%", alignSelf: "center", mx: 1 }} />
       </Tooltip>
       <Box sx={{ flex: 1, overflow: "hidden", display: "flex", justifyContent: "flex-start" }}>
         <DeltaBarSegment

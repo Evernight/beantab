@@ -62,8 +62,8 @@ function readStringListValue(value: unknown): string[] {
 type SearchState = Record<string, unknown>;
 type SearchParams = {
     accountFilter?: unknown;
-    sortProp?: unknown;
-    sortOrder?: unknown;
+    sortProp?: string;
+    sortOrder?: "asc" | "desc";
     groupByAccount?: unknown;
     hideDatesWithLessThanEntries?: unknown;
     hideAccountsWithNoEntries?: unknown;
@@ -156,7 +156,10 @@ const Dashboard: React.FC = () => {
         return readStringListValue(accountFilter);
     }, [accountFilter]);
 
-    const sortingConfig = {prop: sortProp, order: sortOrder};
+    const sortingConfig = {
+        prop: sortProp || null,
+        order: sortOrder,
+    };
 
     const setAccountFilterPatterns = useCallback(
         (patterns: string[]) => {

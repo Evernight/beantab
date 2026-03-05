@@ -2,17 +2,14 @@ import functools
 import logging
 import subprocess
 import traceback
-from collections import defaultdict
 from dataclasses import asdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict
 from typing import List
 from typing import NamedTuple
-from typing import Optional
 
 from beancount.core import data
-from fava.core.conversion import convert_position
 from beancount.core.interpolate import BalanceError as BeancountBalanceError
 from beancount_lazy_plugins.balance_extended.common import BalanceExtendedError
 from beancount_lazy_plugins.balance_extended.common import BalanceType
@@ -22,6 +19,7 @@ from beancount_lazy_plugins.balance_extended.common import get_directives_define
 from beancount_lazy_plugins.balance_extended.common import parse_balance_extended_entry
 from beancount_lazy_plugins.valuation.common import ValuationError
 from beancount_lazy_plugins.valuation.common import parse_valuation_entry
+from fava.core.conversion import convert_position
 from fava.ext import FavaExtensionBase
 from fava.ext import extension_endpoint
 from fava.helpers import FavaAPIError
@@ -97,7 +95,7 @@ class BeanTab(FavaExtensionBase):
 
     def read_ext_config(self) -> ExtConfig:
         """Read extension configuration from the ledger file."""
-        cfg = self.config if isinstance(self.config, dict) else {}
+        # cfg = self.config if isinstance(self.config, dict) else {}
         return ExtConfig()
 
     @extension_endpoint("reload")
