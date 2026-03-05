@@ -524,7 +524,8 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
 
       effectiveDates.forEach((date) => {
         if (showDeltas && deltasByAccount) {
-          row[`deltas-${date}`] = deltasByAccount[account]?.[date] ?? null;
+          const key = `${account}|${currency}`;
+          row[`deltas-${date}`] = deltasByAccount[key]?.[date] ?? null;
         }
         const balance = balList.find((b) => b.date === date);
         if (!balance) {
@@ -559,7 +560,8 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
         };
         effectiveDates.forEach((date) => {
           if (showDeltas && deltasByAccount) {
-            row[`deltas-${date}`] = deltasByAccount[acc.account]?.[date] ?? null;
+            const key = `${acc.account}|${currency}`;
+            row[`deltas-${date}`] = deltasByAccount[key]?.[date] ?? null;
           }
           row[date] = null;
         });

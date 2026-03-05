@@ -302,16 +302,16 @@ class BeanTab(FavaExtensionBase):
     @extension_endpoint("transactions")
     @api_response
     def api_transactions(self):
-        """Get transactions from the ledger with postings converted to target_currency.
+        """Get transactions from the ledger.
 
         Returns a list of transactions, each with date and postings (account, units).
-        target_currency query param is required.
+        If target_currency query param is provided, postings are converted to that currency.
+        If omitted, postings are returned in their original units.
         """
         target_currency = request.args.get("target_currency")
-        if not target_currency or not target_currency.strip():
-            raise FavaAPIError("target_currency query parameter is required")
-
-        target_currency = target_currency.strip()
+        do_convert = target_currency is not None and target_currency.strip() != ""
+        if do_convert:
+            target_currency = target_currency.strip()
         prices = self.ledger.prices
         transactions_out: List[dict] = []
 
@@ -322,18 +322,21 @@ class BeanTab(FavaExtensionBase):
             for posting in entry.postings:
                 if posting.units is None:
                     continue
-                converted = convert_position(
-                    posting,
-                    target_currency,
-                    prices,
-                    entry.date,
-                )
+                if do_convert:
+                    amount = convert_position(
+                        posting,
+                        target_currency,
+                        prices,
+                        entry.date,
+                    )
+                else:
+                    amount = posting.units
                 postings_out.append(
                     {
                         "account": posting.account,
                         "units": {
-                            "number": float(converted.number),
-                            "currency": converted.currency,
+                            "number": float(amount.number),
+                            "currency": amount.currency,
                         },
                     }
                 )

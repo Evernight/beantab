@@ -121,12 +121,15 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                             <Select
                                 labelId="conversion-currency-label"
                                 label="Conversion Currency"
-                                value={conversionCurrency || ""}
+                                value={conversionCurrency}
                                 onChange={(e: SelectChangeEvent<string>) =>
                                     setConversionCurrency(e.target.value)
                                 }
                                 displayEmpty
                             >
+                                <MenuItem value="none">
+                                    Don&apos;t convert
+                                </MenuItem>
                                 {operatingCurrencies.length === 0 ? (
                                     <MenuItem value="" disabled>No operating currencies</MenuItem>
                                 ) : null}

@@ -62,24 +62,30 @@ function computeDeltasByAccount(
                 (prevDate === "" || txnDate > prevDate) && txnDate <= date;
             if (!inRange) continue;
 
-            // Group postings by account and sum
-            const byAccount = new Map<string, number>();
+            // Group postings by account and currency, sum
+            const byAccountCurrency = new Map<string, { account: string; amount: number }>();
             for (const p of txn.postings) {
-                const current = byAccount.get(p.account) ?? 0;
-                byAccount.set(p.account, current + p.units.number);
+                const key = `${p.account}|${p.units.currency}`;
+                const current = byAccountCurrency.get(key);
+                const amount = p.units.number;
+                if (current) {
+                    byAccountCurrency.set(key, { account: p.account, amount: current.amount + amount });
+                } else {
+                    byAccountCurrency.set(key, { account: p.account, amount });
+                }
             }
 
-            // For each account, add other accounts' postings to its delta via addToDelta
-            for (const [account] of byAccount) {
-                if (!deltasByAccount[account]) {
-                    deltasByAccount[account] = {};
+            // For each account+currency, add other postings' amounts to its delta via addToDelta
+            for (const [key] of byAccountCurrency) {
+                if (!deltasByAccount[key]) {
+                    deltasByAccount[key] = {};
                 }
-                if (!deltasByAccount[account][date]) {
-                    deltasByAccount[account][date] = createEmptyAccountDelta();
+                if (!deltasByAccount[key][date]) {
+                    deltasByAccount[key][date] = createEmptyAccountDelta();
                 }
-                for (const [otherAccount, otherAmount] of byAccount) {
-                    if (otherAccount !== account) {
-                        addToDelta(deltasByAccount[account][date], otherAccount, otherAmount);
+                for (const [otherKey, other] of byAccountCurrency) {
+                    if (otherKey !== key) {
+                        addToDelta(deltasByAccount[key][date], other.account, other.amount);
                     }
                 }
             }
@@ -201,14 +207,17 @@ const Dashboard: React.FC = () => {
 
     const rawCcy = conversionCurrencyParam;
     const conversionCurrency =
-        typeof rawCcy === "string" && rawCcy.trim().length > 0 && operatingCurrencies.includes(rawCcy)
-            ? rawCcy
-            : defaultConversionCurrency;
+        rawCcy === "none"
+            ? "none"
+            : typeof rawCcy === "string" && rawCcy.trim().length > 0 && operatingCurrencies.includes(rawCcy)
+                ? rawCcy
+                : defaultConversionCurrency || "none";
+    const conversionCurrencyForApi = conversionCurrency === "none" ? "" : conversionCurrency;
 
     const showDeltas = readBooleanParam(showDeltasParam, SETTINGS_DEFAULTS.showDeltas);
 
-    const { data: transactionsData } = useTransactions(conversionCurrency, {
-        enabled: showDeltas && conversionCurrency.length > 0,
+    const { data: transactionsData } = useTransactions(conversionCurrencyForApi, {
+        enabled: showDeltas,
     });
 
     // Source of truth: URL query params.
@@ -285,7 +294,9 @@ const Dashboard: React.FC = () => {
                 search: (prev: SearchState) => ({
                     ...prev,
                     conversionCurrency:
-                        value && value !== defaultConversionCurrency ? value : undefined,
+                        value === "none" || (value && value !== defaultConversionCurrency)
+                            ? value
+                            : undefined,
                 }),
                 replace: true,
             });

@@ -23,14 +23,16 @@ export function useTransactions(
   options?: { enabled?: boolean }
 ): UseQueryResult<TransactionsData> {
   const params = new URLSearchParams(location.search);
-  params.set("target_currency", targetCurrency);
-  const url = `transactions?${params}`;
+  if (targetCurrency.length > 0) {
+    params.set("target_currency", targetCurrency);
+  }
+  const url = params.toString() ? `transactions?${params}` : "transactions";
 
-  const enabled = options?.enabled ?? targetCurrency.length > 0;
+  const enabled = options?.enabled ?? true;
 
   return useQuery({
     queryKey: ["transactions", targetCurrency],
     queryFn: () => fetchJSON<TransactionsData>(url),
-    enabled: enabled && targetCurrency.length > 0,
+    enabled,
   });
 }
