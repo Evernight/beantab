@@ -207,9 +207,6 @@ class BeanTab(FavaExtensionBase):
                 except ValuationError:
                     continue
 
-                if (parsed.account == "Assets:EToro:Total"):
-                    print("parsed", parsed)
-
                 ensure_account_balance_type(
                     parsed.account,
                     account_to_type_mapping,

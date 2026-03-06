@@ -11,6 +11,10 @@ What's the ideal way to manage balance assertions? I switched to Beancount from 
 Why not to get the best of both worlds?
 BeanTab is meant to be a part of Beancount plugin ecosystem that makes that particular workflow pleasant to use. It relies on ```balance-ext``` and ```pad-ext``` from [beancount-lazy-plugins](https://github.com/Evernight/beancount-lazy-plugins) extensions that augment the original ```balance``` and ```pad``` operations with more functionality and flexibility.
 
+![BeanTab Extended](images/screenshot_extended.png)
+
+Also explore transactions and discrepancies using the advanced view.
+
 ## Features
 
 - **Spreadsheet-style balance table** — View all balance assertions, valuations, and `balance-ext` entries in an editable grid (powered by [RevoGrid](https://github.com/revolist/revogrid))
@@ -18,6 +22,8 @@ BeanTab is meant to be a part of Beancount plugin ecosystem that makes that part
 - **Multiple balance types** — Supports regular Balance, valuation, and `balance-ext` directives (regular, padded, full-padded, valuation)
 - **Filtering** — Can be filtered by account / regex and a couple of additional settings to only show the set of accounts you're interested in
 - **URL-persisted settings** — Current configuration (filters, sort, layout) is stored in the URL for bookmarking / saving using ```fava-sidebar-link``` directive
+- **Categorized changes between periods** – Enable "Show Deltas" to see changes in balances from transactions classified by account types
+- **Interlinked with Fava pages*** – Easily find discrepancies in balances and explore them in Fava
 
 ## Installation
 
