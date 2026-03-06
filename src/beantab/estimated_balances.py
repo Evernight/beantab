@@ -61,11 +61,13 @@ def compute_estimated_balances(
             for currency in subtree.currencies():
                 amt = subtree.get_currency_units(currency)
                 if amt is not None and amt.number != 0:
-                    estimated.append({
-                        "account": real_account.account,
-                        "currency": currency,
-                        "date": target_date.isoformat(),
-                        "number": float(amt.number),
-                    })
+                    estimated.append(
+                        {
+                            "account": real_account.account,
+                            "currency": currency,
+                            "date": target_date.isoformat(),
+                            "number": float(amt.number),
+                        }
+                    )
 
     return estimated

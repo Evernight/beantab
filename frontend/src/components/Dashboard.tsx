@@ -419,7 +419,10 @@ const Dashboard: React.FC = () => {
                         onSortingChange={setSorting}
                     />
 
-                    <TableEditControls />
+                    <TableEditControls
+                      showDeltas={showDeltas}
+                      onToggleShowDeltas={() => setShowDeltas(!showDeltas)}
+                    />
                 </CardContent>
             </Card>
 

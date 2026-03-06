@@ -31,6 +31,11 @@ import type { BalancesData } from "../api/balances";
 import { useEstimatedBalances } from "../api/estimatedBalances";
 import type { Transaction } from "../api/transactions";
 import { BALANCE_TYPE_DISPLAY_MAPPING } from "../constants/balanceTypes";
+import {
+  DELTA_KEY_LABEL,
+  DELTA_NEGATIVE,
+  DELTA_POSITIVE,
+} from "../constants/deltas";
 import type { AccountDelta } from "../types/deltas";
 import { BalanceTypeChip } from "./BalanceTypeChip";
 import {
@@ -175,35 +180,6 @@ function buildExpensesDashboardUrl(date: string, prevDate: string): string {
   params.set("time", timeFilter);
   return `${window.location.origin}${basePath}/extension/FavaDashboards/?${params}`;
 }
-
-const DELTA_KEY_LABEL: Record<keyof AccountDelta, string> = {
-  assetsPositive: "Assets (Transfers Out)",
-  assetsNegative: "Assets (Transfers In)",
-  liabilitiesPositive: "Liabilities (Transfers Out)",
-  liabilitiesNegative: "Liabilities (Transfers In)",
-  expensesPositive: "Expenses",
-  expensesNegative: "Expenses (Negative)",
-  incomePositive: "Income (Positive)",
-  incomeNegative: "Income",
-  padPositive: "Padding (Positive)",
-  padNegative: "Padding (Negative)",
-};
-
-const DELTA_NEGATIVE: { key: keyof AccountDelta; color: string; textColor: string }[] = [
-  { key: "assetsNegative", color: blue[300], textColor: blue[700] },
-  { key: "liabilitiesNegative", color: teal[300], textColor: teal[700] },
-  { key: "expensesNegative", color: lime[200], textColor: lime[700] },
-  { key: "incomeNegative", color: green[300], textColor: green[700] },
-  { key: "padNegative", color: pink[300], textColor: pink[700] },
-];
-
-const DELTA_POSITIVE: { key: keyof AccountDelta; color: string; textColor: string }[] = [
-  { key: "assetsPositive", color: blue[600], textColor: blue[900] },
-  { key: "liabilitiesPositive", color: teal[500], textColor: teal[900] },
-  { key: "expensesPositive", color: lime[600], textColor: lime[900] },
-  { key: "incomePositive", color: green[600], textColor: green[900] },
-  { key: "padPositive", color: pink[600], textColor: pink[900] },
-];
 
 function filterTransactionsForPeriod(
   transactions: Transaction[],
@@ -371,6 +347,15 @@ const DeltaBarSegment: React.FC<{
               <Button
                 component="span"
                 variant="contained"
+                onClick={
+                  journalUrl
+                    ? (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        window.open(journalUrl, "_blank", "noopener,noreferrer");
+                      }
+                    : undefined
+                }
                 sx={{
                   flex: `${pct} 1 0`,
                   minWidth: Math.abs(val) > 0 ? 2 : 0,
@@ -493,7 +478,20 @@ const DeltaBarCell: React.FC<DeltaBarCellProps> = (props) => {
               },
             }}
           >
-            <ViewListIcon sx={{ fontSize: 18, color: "grey.500", opacity: 0.6, ml: -0.5 }} />
+            <IconButton
+              size="small"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (journalUrl) window.open(journalUrl, "_blank", "noopener,noreferrer");
+              }}
+              sx={{
+                p: 0.25,
+                ml: -0.5,
+                "&:hover": { backgroundColor: "action.hover" },
+              }}
+            >
+              <ViewListIcon sx={{ fontSize: 18, color: "grey.500", opacity: 0.6 }} />
+            </IconButton>
           </Badge>
           <ChevronRightIcon sx={{ fontSize: 18, color: "grey.500", opacity: 0.6, ml: -0.5 }} />
         </Box>

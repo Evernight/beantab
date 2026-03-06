@@ -2,11 +2,21 @@ import React, { useEffect, useState } from "react";
 import { observer } from "mobx-react-lite";
 import {
   Button,
+  ButtonGroup,
   Box,
   Alert,
   CircularProgress,
   Badge,
+  IconButton,
+  Tooltip,
 } from "@mui/material";
+import MultipleStopIcon from "@mui/icons-material/MultipleStop";
+import {
+  DELTA_KEY_LABEL,
+  DELTA_KEY_LABEL_SHORT,
+  DELTA_NEGATIVE,
+  DELTA_POSITIVE,
+} from "../constants/deltas";
 import RestoreIcon from "@mui/icons-material/Restore";
 import SaveIcon from "@mui/icons-material/Save";
 import { beanTabStore } from "../stores/beanTabStore";
@@ -15,6 +25,8 @@ import SaveChangesDialog from "./SaveChangesDialog";
 interface TableEditControlsProps {
   onSave?: () => void;
   onRevert?: () => void;
+  showDeltas?: boolean;
+  onToggleShowDeltas?: () => void;
 }
 
 const CHANGED_POLL_INTERVAL_MS = 1000;
@@ -38,6 +50,8 @@ function getChangedApiUrl(): string {
 const TableEditControls: React.FC<TableEditControlsProps> = ({
   onSave,
   onRevert,
+  showDeltas = false,
+  onToggleShowDeltas,
 }) => {
   const [saving, setSaving] = useState(false);
   const [waitingForReload, setWaitingForReload] = useState(false);
@@ -159,7 +173,40 @@ const TableEditControls: React.FC<TableEditControlsProps> = ({
           paddingRight: 2,
         }}
       >
-          <Box sx={{ flex: 1 }}>
+          <Box sx={{ flex: 1, display: "flex", alignItems: "center", gap: 1 }}>
+            {onToggleShowDeltas && (
+              <Tooltip title={showDeltas ? "Hide deltas" : "Show deltas"}>
+                <IconButton
+                  size="small"
+                  onClick={onToggleShowDeltas}
+                  color={showDeltas ? "primary" : "default"}
+                  aria-label={showDeltas ? "Hide deltas" : "Show deltas"}
+                >
+                  <MultipleStopIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            )}
+            {showDeltas && (
+              <ButtonGroup size="small">
+                {[...DELTA_NEGATIVE, ...DELTA_POSITIVE].map(({ key, color, textColor }) => (
+                  <Tooltip key={key} title={DELTA_KEY_LABEL[key]}>
+                    <Button
+                      component="span"
+                      sx={{
+                        backgroundColor: color,
+                        color: textColor,
+                        fontSize: "0.7rem",
+                        py: 0.25,
+                        px: 0.5,
+                        minWidth: "auto",
+                      }}
+                    >
+                      {DELTA_KEY_LABEL_SHORT[key]}
+                    </Button>
+                  </Tooltip>
+                ))}
+              </ButtonGroup>
+            )}
           </Box>
           <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
             <Badge
