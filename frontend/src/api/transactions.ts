@@ -21,18 +21,20 @@ export interface TransactionsData {
 
 export function useTransactions(
   targetCurrency: string,
-  options?: { enabled?: boolean }
+  options?: { enabled?: boolean; convertTransactionsAtCost?: boolean }
 ): UseQueryResult<TransactionsData> {
   const params = new URLSearchParams(location.search);
   if (targetCurrency.length > 0) {
     params.set("target_currency", targetCurrency);
+    const convertAtCost = options?.convertTransactionsAtCost ?? true;
+    params.set("convert_transactions_at_cost", String(convertAtCost));
   }
   const url = params.toString() ? `transactions?${params}` : "transactions";
 
   const enabled = options?.enabled ?? true;
 
   return useQuery({
-    queryKey: ["transactions", targetCurrency],
+    queryKey: ["transactions", targetCurrency, options?.convertTransactionsAtCost],
     queryFn: () => fetchJSON<TransactionsData>(url),
     enabled,
   });

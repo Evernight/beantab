@@ -30,6 +30,8 @@ export type SettingsDialogProps = Readonly<{
     setHideAccountsWithNoEntries: (value: boolean) => void;
     conversionCurrency: string;
     setConversionCurrency: (value: string) => void;
+    convertTransactionsAtCost: boolean;
+    setConvertTransactionsAtCost: (value: boolean) => void;
     operatingCurrencies: string[];
     showDeltas: boolean;
     setShowDeltas: (value: boolean) => void;
@@ -50,6 +52,8 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
     setHideAccountsWithNoEntries,
     conversionCurrency,
     setConversionCurrency,
+    convertTransactionsAtCost,
+    setConvertTransactionsAtCost,
     operatingCurrencies,
     showDeltas,
     setShowDeltas,
@@ -122,7 +126,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                             }
                         />
                     </ListItem>
-                    <Divider component="li" />
+                    {/* <Divider component="li" />
                     <ListItem
                         alignItems="flex-start"
                         secondaryAction={
@@ -141,7 +145,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                                 </Typography>
                             }
                         />
-                    </ListItem>
+                    </ListItem> */}
                     <Divider component="li" />
                     <ListItem
                         alignItems="flex-start"
@@ -188,6 +192,25 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                                 ))}
                             </Select>
                         </FormControl>
+                    </ListItem>
+                    <ListItem
+                        alignItems="flex-start"
+                        secondaryAction={
+                            <Checkbox
+                                checked={convertTransactionsAtCost}
+                                onChange={(e) => setConvertTransactionsAtCost(e.target.checked)}
+                                inputProps={{ "aria-label": "Convert transactions at cost" }}
+                            />
+                        }
+                    >
+                        <ListItemText
+                            primary="Convert transactions at cost"
+                            secondary={
+                                <Typography variant="body2" color="text.secondary">
+                                    When converting to a target currency, postings with cost specified are converted using their cost basis. When disabled, standard price conversion is used for all postings.
+                                </Typography>
+                            }
+                        />
                     </ListItem>
                     <Divider component="li" />
                     <ListItem

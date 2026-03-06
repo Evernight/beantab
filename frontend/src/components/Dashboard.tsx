@@ -68,6 +68,7 @@ type SearchParams = {
     hideDatesWithLessThanEntries?: unknown;
     hideAccountsWithNoEntries?: unknown;
     conversionCurrency?: unknown;
+    convertTransactionsAtCost?: unknown;
     showDeltas?: unknown;
     showEstimatedBalances?: unknown;
     invertSign?: unknown;
@@ -77,6 +78,7 @@ const SETTINGS_DEFAULTS = {
     groupByAccount: false,
     hideDatesWithLessThanEntries: 0,
     hideAccountsWithNoEntries: false,
+    convertTransactionsAtCost: true,
     showDeltas: true,
     showEstimatedBalances: true,
     invertSign: false,
@@ -106,7 +108,7 @@ function readNumberParam(value: unknown, fallback: number): number {
 const Dashboard: React.FC = () => {
     const navigate = useNavigate();
     const searchParams = useSearch({ strict: false }) as SearchParams;
-    const { accountFilter, sortProp, sortOrder, conversionCurrency: conversionCurrencyParam, showDeltas: showDeltasParam, showEstimatedBalances: showEstimatedBalancesParam, invertSign: invertSignParam } =
+    const { accountFilter, sortProp, sortOrder, conversionCurrency: conversionCurrencyParam, convertTransactionsAtCost: convertTransactionsAtCostParam, showDeltas: showDeltasParam, showEstimatedBalances: showEstimatedBalancesParam, invertSign: invertSignParam } =
         searchParams;
     const { data: balancesData, isLoading, error } = useBalances();
     const [accountFilterInput, setAccountFilterInput] = useState<string>("");
@@ -147,12 +149,17 @@ const Dashboard: React.FC = () => {
                 : defaultConversionCurrency;
     const conversionCurrencyForApi = conversionCurrency === "none" ? "" : conversionCurrency;
 
+    const convertTransactionsAtCost = readBooleanParam(
+        convertTransactionsAtCostParam,
+        SETTINGS_DEFAULTS.convertTransactionsAtCost,
+    );
     const showDeltas = readBooleanParam(showDeltasParam, SETTINGS_DEFAULTS.showDeltas);
     const showEstimatedBalances = readBooleanParam(showEstimatedBalancesParam, SETTINGS_DEFAULTS.showEstimatedBalances);
     const invertSign = readBooleanParam(invertSignParam, SETTINGS_DEFAULTS.invertSign);
 
     const { data: transactionsData } = useTransactions(conversionCurrencyForApi, {
         enabled: showDeltas,
+        convertTransactionsAtCost,
     });
 
     // Source of truth: URL query params.
@@ -255,6 +262,21 @@ const Dashboard: React.FC = () => {
             });
         },
         [navigate, defaultConversionCurrency],
+    );
+
+    const setConvertTransactionsAtCost = useCallback(
+        (value: boolean) => {
+            navigate({
+                to: ".",
+                search: (prev: SearchState) => ({
+                    ...prev,
+                    convertTransactionsAtCost:
+                        value === SETTINGS_DEFAULTS.convertTransactionsAtCost ? undefined : value,
+                }),
+                replace: true,
+            });
+        },
+        [navigate],
     );
 
     const setShowDeltas = useCallback(
@@ -461,6 +483,8 @@ const Dashboard: React.FC = () => {
                 setHideAccountsWithNoEntries={setHideAccountsWithNoEntries}
                 conversionCurrency={conversionCurrency}
                 setConversionCurrency={setConversionCurrency}
+                convertTransactionsAtCost={convertTransactionsAtCost}
+                setConvertTransactionsAtCost={setConvertTransactionsAtCost}
                 operatingCurrencies={operatingCurrencies}
                 showDeltas={showDeltas}
                 setShowDeltas={setShowDeltas}

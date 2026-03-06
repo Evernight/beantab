@@ -11,6 +11,8 @@ from typing import List
 from typing import NamedTuple
 
 from beancount.core import data
+from beancount.core.amount import Amount
+from beancount.core.position import Position
 from beancount.core.interpolate import BalanceError as BeancountBalanceError
 from beancount_lazy_plugins.balance_extended.common import BalanceExtendedError
 from beancount_lazy_plugins.balance_extended.common import BalanceType
@@ -21,6 +23,7 @@ from beancount_lazy_plugins.balance_extended.common import parse_balance_extende
 from beancount_lazy_plugins.valuation.common import ValuationError
 from beancount_lazy_plugins.valuation.common import parse_valuation_entry
 from fava.core.conversion import convert_position
+from fava.core.conversion import get_market_value
 from fava.ext import FavaExtensionBase
 from fava.ext import extension_endpoint
 from fava.helpers import FavaAPIError
@@ -309,12 +312,16 @@ class BeanTab(FavaExtensionBase):
 
         Returns a list of transactions, each with date and postings (account, units).
         If target_currency query param is provided, postings are converted to that currency.
-        If omitted, postings are returned in their original units.
+        If omitted, postings are returned in their original units unless
+        convert_transactions_at_cost is true, in which case postings with cost are
+        converted to their cost currency (default: true).
         """
         target_currency = request.args.get("target_currency")
         do_convert = target_currency is not None and target_currency.strip() != ""
         if do_convert:
             target_currency = target_currency.strip()
+        convert_at_cost_raw = request.args.get("convert_transactions_at_cost", "true")
+        convert_transactions_at_cost = convert_at_cost_raw.lower() not in ("false", "0", "no")
         prices = self.ledger.prices
         transactions_out: List[dict] = []
 
@@ -332,8 +339,15 @@ class BeanTab(FavaExtensionBase):
                         prices,
                         entry.date,
                     )
+                elif (
+                    convert_transactions_at_cost
+                    and posting.cost is not None
+                    and getattr(posting.cost, "currency", None) is not None
+                ):
+                    amount = get_market_value(posting, prices, entry.date)
                 else:
                     amount = posting.units
+                    
                 postings_out.append(
                     {
                         "account": posting.account,
