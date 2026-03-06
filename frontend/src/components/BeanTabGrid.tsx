@@ -409,13 +409,18 @@ const DeltaBarCell: React.FC<DeltaBarCellProps> = (props) => {
   const maxSum = Math.max(totalNeg, totalPos, 1);
   if (totalNeg <= 0 && totalPos <= 0) return null;
 
-  const txnCount = filterTransactionsForPeriod(
+  const filteredTxns = filterTransactionsForPeriod(
     transactions,
     account,
     currency,
     date,
     prevDate,
-  ).length;
+  );
+  const txnCount = filteredTxns.length;
+  const lastTxnDate =
+    filteredTxns.length > 0
+      ? filteredTxns.reduce((max, t) => (t.date > max ? t.date : max), "")
+      : null;
 
   const segmentProps = {
     account,
@@ -462,6 +467,11 @@ const DeltaBarCell: React.FC<DeltaBarCellProps> = (props) => {
                 </div>
               );
             })}
+            {lastTxnDate && (
+              <div style={{ marginTop: 4, opacity: 0.9 }}>
+                Most recent transaction on {lastTxnDate}
+              </div>
+            )}
           </Box>
         }
       >
