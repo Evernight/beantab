@@ -9,6 +9,7 @@ import {
   Template,
 } from "@revolist/react-datagrid";
 import Alert from "@mui/material/Alert";
+import Badge from "@mui/material/Badge";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import ButtonGroup from "@mui/material/ButtonGroup";
@@ -22,6 +23,8 @@ import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import AccountTreeIcon from "@mui/icons-material/AccountTree";
 import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
 import TuneIcon from "@mui/icons-material/Tune";
+import ChevronRightIcon from "@mui/icons-material/ChevronRight";
+import ViewListIcon from "@mui/icons-material/ViewList";
 import RestoreIcon from "@mui/icons-material/Restore";
 import { amber, blue, blueGrey, brown, cyan, green, lime, orange, pink, red, teal } from "@mui/material/colors";
 import type { BalancesData } from "../api/balances";
@@ -420,6 +423,14 @@ const DeltaBarCell: React.FC<DeltaBarCellProps> = (props) => {
   const maxSum = Math.max(totalNeg, totalPos, 1);
   if (totalNeg <= 0 && totalPos <= 0) return null;
 
+  const txnCount = filterTransactionsForPeriod(
+    transactions,
+    account,
+    currency,
+    date,
+    prevDate,
+  ).length;
+
   const segmentProps = {
     account,
     date,
@@ -468,7 +479,24 @@ const DeltaBarCell: React.FC<DeltaBarCellProps> = (props) => {
           </Box>
         }
       >
-        <Divider orientation="vertical" flexItem sx={{ height: "80%", alignSelf: "center", mx: 1 }} />
+        <Box sx={{ display: "flex", alignItems: "center", mx: 0.1, alignSelf: "center", gap: 0 }}>
+          <ChevronRightIcon sx={{ fontSize: 18, color: "grey.500", opacity: 0.6 }} />
+          <Badge
+            badgeContent={txnCount}
+            showZero={false}
+            color="default"
+            sx={{
+              "& .MuiBadge-badge": {
+                fontSize: "0.6rem",
+                minWidth: 14,
+                height: 14,
+              },
+            }}
+          >
+            <ViewListIcon sx={{ fontSize: 18, color: "grey.500", opacity: 0.6, ml: -0.5 }} />
+          </Badge>
+          <ChevronRightIcon sx={{ fontSize: 18, color: "grey.500", opacity: 0.6, ml: -0.5 }} />
+        </Box>
       </Tooltip>
       <Box sx={{ flex: 1, overflow: "hidden", display: "flex", justifyContent: "flex-start" }}>
         <DeltaBarSegment
@@ -1068,7 +1096,7 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
           cols.push({
             prop: `deltas-${date}`,
             name: `Δ ${date}`,
-            size: 180,
+            size: 240,
             sortable: false,
             readonly: true,
             columnTemplate: Template(DeltaColumnHeaderWithDate),

@@ -137,7 +137,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                             primary="Show Deltas"
                             secondary={
                                 <Typography variant="body2" color="text.secondary">
-                                    When enabled, fetches transactions for delta calculations.
+                                    When enabled, show changes in balances from transactions classified by account types.
                                 </Typography>
                             }
                         />
