@@ -30,6 +30,7 @@ import { amber, blue, blueGrey, brown, cyan, green, lime, orange, pink, red, tea
 import type { BalancesData } from "../api/balances";
 import { useEstimatedBalances } from "../api/estimatedBalances";
 import type { Transaction } from "../api/transactions";
+import { BALANCE_COLOR_NEGATIVE, BALANCE_COLOR_POSITIVE } from "../constants/balanceColors";
 import { BALANCE_TYPE_DISPLAY_MAPPING } from "../constants/balanceTypes";
 import {
   DELTA_KEY_LABEL,
@@ -739,7 +740,7 @@ const BalanceCell: React.FC<BalanceCellProps> = (props) => {
     valueNode = (
       <span
         style={{
-          color: isEstimated ? "rgba(128, 128, 128, 0.4)" : (value >= 0 ? "#2e7d32" : "#d32f2f"),
+          color: isEstimated ? "rgba(128, 128, 128, 0.4)" : (value >= 0 ? BALANCE_COLOR_POSITIVE : BALANCE_COLOR_NEGATIVE),
           fontWeight: isEstimated ? "normal" : "bold",
         }}
       >
@@ -786,8 +787,8 @@ const BalanceCell: React.FC<BalanceCellProps> = (props) => {
           height: "80%",
           marginRight: 1,
           flexShrink: 0,
-          backgroundColor: "#d32f2f",
-          "&:hover": { backgroundColor: "#b71c1c" },
+          backgroundColor: BALANCE_COLOR_NEGATIVE,
+          "&:hover": { backgroundColor: BALANCE_COLOR_NEGATIVE, opacity: 0.9 },
           padding: 0,
         }}
         aria-label="Balance error"
