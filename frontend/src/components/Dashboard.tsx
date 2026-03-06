@@ -113,6 +113,7 @@ const Dashboard: React.FC = () => {
     const [additionalDatesInput, setAdditionalDatesInput] = useState<string>("");
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [helpOpen, setHelpOpen] = useState(false);
+    const [filterStats, setFilterStats] = useState<{ hiddenAccountsCount: number }>({ hiddenAccountsCount: 0 });
     const groupByAccount = useMemo(
         () => readBooleanParam(searchParams.groupByAccount, SETTINGS_DEFAULTS.groupByAccount),
         [searchParams.groupByAccount],
@@ -417,11 +418,17 @@ const Dashboard: React.FC = () => {
                         invertSign={invertSign}
                         sortingConfig={sortingConfig}
                         onSortingChange={setSorting}
+                        onFilterStatsChange={(stats) =>
+                            setFilterStats((prev) =>
+                                prev.hiddenAccountsCount === stats.hiddenAccountsCount ? prev : stats,
+                            )
+                        }
                     />
 
                     <TableEditControls
                       showDeltas={showDeltas}
                       onToggleShowDeltas={() => setShowDeltas(!showDeltas)}
+                      hiddenAccountsCount={filterStats.hiddenAccountsCount}
                     />
                 </CardContent>
             </Card>

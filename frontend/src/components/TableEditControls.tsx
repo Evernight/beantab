@@ -9,6 +9,7 @@ import {
   Badge,
   IconButton,
   Tooltip,
+  Typography,
 } from "@mui/material";
 import MultipleStopIcon from "@mui/icons-material/MultipleStop";
 import {
@@ -27,6 +28,8 @@ interface TableEditControlsProps {
   onRevert?: () => void;
   showDeltas?: boolean;
   onToggleShowDeltas?: () => void;
+  /** Number of account rows hidden by hideAccountsWithNoEntries */
+  hiddenAccountsCount?: number;
 }
 
 const CHANGED_POLL_INTERVAL_MS = 1000;
@@ -52,6 +55,7 @@ const TableEditControls: React.FC<TableEditControlsProps> = ({
   onRevert,
   showDeltas = false,
   onToggleShowDeltas,
+  hiddenAccountsCount = 0,
 }) => {
   const [saving, setSaving] = useState(false);
   const [waitingForReload, setWaitingForReload] = useState(false);
@@ -206,6 +210,17 @@ const TableEditControls: React.FC<TableEditControlsProps> = ({
                   </Tooltip>
                 ))}
               </ButtonGroup>
+            )}
+            {hiddenAccountsCount > 0 && (
+              <Tooltip title="Check &quot;Hide accounts with no entries&quot; and &quot;Only show dates with X or more entries&quot; options if you don't see accounts you expect to see here">
+                <Typography
+                  variant="body2"
+                  component="span"
+                  sx={{ color: "text.secondary", opacity: 0.8, fontSize: "0.8rem" }}
+                >
+                  {hiddenAccountsCount} account{hiddenAccountsCount !== 1 ? "s" : ""} hidden
+                </Typography>
+              </Tooltip>
             )}
           </Box>
           <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>

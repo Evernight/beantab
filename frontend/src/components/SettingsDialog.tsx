@@ -59,7 +59,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
     setInvertSign,
 }) => {
     return (
-        <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
+        <Dialog open={open} onClose={onClose} PaperProps={{ sx: { width: 640, maxWidth: "90vw" } }}>
             <DialogTitle>Settings</DialogTitle>
             <DialogContent dividers>
                 <List disablePadding sx={{ display: "flex", flexDirection: "column", gap: 1 }}>

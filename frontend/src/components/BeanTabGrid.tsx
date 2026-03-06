@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo } from "react";
 import { observer } from "mobx-react-lite";
 import {
   ColumnDataSchemaModel,
@@ -67,6 +67,7 @@ interface BeanTabGridProps {
   invertSign?: boolean;
   sortingConfig?: { prop: string | null, order: "asc" | "desc" | undefined };
   onSortingChange?: (prop: string | null, order?: "asc" | "desc") => void;
+  onFilterStatsChange?: (stats: { hiddenAccountsCount: number }) => void;
 }
 
 function createEmptyAccountDelta(): AccountDelta {
@@ -841,8 +842,10 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
   invertSign = false,
   sortingConfig,
   onSortingChange,
+  onFilterStatsChange,
 }) => {
   let transformedData: GridRow[] = [];
+  let hiddenAccountsCount = 0;
   let columns: (ColumnRegular | ColumnGrouping)[] = [];
   let estimatedCellValues: Record<string, number> = {};
   const { balanceErrorKeys, balanceErrorMessages } = useMemo(() => {
@@ -910,6 +913,10 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
     }
     return lookup;
   }, [estimatedBalancesData?.estimatedBalances]);
+
+  useEffect(() => {
+    onFilterStatsChange?.({ hiddenAccountsCount });
+  }, [onFilterStatsChange, hiddenAccountsCount]);
 
   if (balancesData) {
     const { balances, accounts } = balancesData;
@@ -1020,6 +1027,7 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
       row[cell.date] = symbol ? `${cell.newValue}${symbol}` : cell.newValue;
     }
     if (hideAccountsWithNoEntries) {
+      const beforeCount = transformedData.length;
       transformedData = transformedData.filter((row) =>
         effectiveDates.some((date) => {
           const val = row[date];
@@ -1029,6 +1037,7 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
           return true; // actual Balance directive
         }),
       );
+      hiddenAccountsCount = beforeCount - transformedData.length;
     }
 
     const accountColumn = {
