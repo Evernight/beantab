@@ -68,6 +68,8 @@ interface BeanTabGridProps {
   sortingConfig?: { prop: string | null, order: "asc" | "desc" | undefined };
   onSortingChange?: (prop: string | null, order?: "asc" | "desc") => void;
   onFilterStatsChange?: (stats: { hiddenAccountsCount: number }) => void;
+  /** When provided, clicking account name sets filter to this account instead of navigating to journal */
+  onAccountClick: (account: string) => void;
 }
 
 function createEmptyAccountDelta(): AccountDelta {
@@ -656,12 +658,25 @@ function getBeancountBasePath(): string {
   return segment ? `/${segment}` : "";
 }
 
-const AccountCell: React.FC<ColumnDataSchemaModel | ColumnTemplateProp> = ({ value }) => {
+type AccountCellProps = (ColumnDataSchemaModel | ColumnTemplateProp) & {
+  onAccountClick: (account: string) => void;
+};
+
+const AccountCell: React.FC<AccountCellProps> = (props) => {
+  const value = props.value;
   const accountName = value != null ? String(value) : "";
   const iconColor = getColorFromHashString(accountName);
-  const accountHref = accountName
+  const onAccountClick = props.onAccountClick;
+  const accountHref = !onAccountClick && accountName
     ? `${getBeancountBasePath()}/account/${accountName}/`
     : "";
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onAccountClick && accountName) {
+      e.preventDefault();
+      onAccountClick(accountName);
+    }
+  };
   return (
     <span
       style={{
@@ -671,14 +686,31 @@ const AccountCell: React.FC<ColumnDataSchemaModel | ColumnTemplateProp> = ({ val
       }}
     >
       <AccountBalanceWalletIcon style={{ fontSize: "14px", color: iconColor }} />
-      {accountHref ? (
-        <a
-          href={accountHref}
-          onClick={(e) => e.stopPropagation()}
-          style={{ color: "inherit", textDecoration: "none" }}
-        >
-          {value}
-        </a>
+      {accountName ? (
+        onAccountClick ? (
+          <span
+            role="button"
+            tabIndex={0}
+            onClick={handleClick}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onAccountClick(accountName);
+              }
+            }}
+            style={{ color: "inherit", textDecoration: "none", cursor: "pointer" }}
+          >
+            {value}
+          </span>
+        ) : (
+          <a
+            href={accountHref}
+            onClick={handleClick}
+            style={{ color: "inherit", textDecoration: "none" }}
+          >
+            {value}
+          </a>
+        )
       ) : (
         value
       )}
@@ -843,6 +875,7 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
   sortingConfig,
   onSortingChange,
   onFilterStatsChange,
+  onAccountClick,
 }) => {
   let transformedData: GridRow[] = [];
   let hiddenAccountsCount = 0;
@@ -1050,7 +1083,7 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
       rowDrag: false,
       autoSize: true,
       columnTemplate: Template(AccountColumnHeader),
-      cellTemplate: Template(AccountCell),
+      cellTemplate: Template((p: AccountCellProps) => <AccountCell {...p} onAccountClick={onAccountClick} />),
       ...(sortingConfig && sortingConfig.prop === "account" ? { order: sortingConfig.order } : {}),
     };
 

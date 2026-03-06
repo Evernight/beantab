@@ -225,6 +225,21 @@ const Dashboard: React.FC = () => {
         [navigate],
     );
 
+    const handleAccountClick = useCallback(
+        (account: string) => {
+            navigate({
+                to: ".",
+                search: (prev: SearchState) => ({
+                    ...prev,
+                    accountFilter: [account],
+                    hideAccountsWithNoEntries: undefined,
+                }),
+                replace: false,
+            });
+        },
+        [navigate],
+    );
+
     const setConversionCurrency = useCallback(
         (value: string) => {
             navigate({
@@ -423,6 +438,7 @@ const Dashboard: React.FC = () => {
                                 prev.hiddenAccountsCount === stats.hiddenAccountsCount ? prev : stats,
                             )
                         }
+                        onAccountClick={handleAccountClick}
                     />
 
                     <TableEditControls
