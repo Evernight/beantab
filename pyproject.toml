@@ -1,12 +1,12 @@
 [project]
 name = "beantab"
-version = "0.1.0"
+version = "0.1.1"
 description = "BeanTab - Spreadsheet-like balance manager for Fava and Beancount"
 authors = [
     { name = "Evernight" }
 ]
 dependencies = [
-    "beancount-lazy-plugins @ git+https://github.com/Evernight/beancount-lazy-plugins",
+    # "beancount-lazy-plugins @ git+https://github.com/Evernight/beancount-lazy-plugins",
     "fava>=1.30.3",
 ]
 readme = "README.md"
