@@ -33,6 +33,8 @@ export type SettingsDialogProps = Readonly<{
     operatingCurrencies: string[];
     showDeltas: boolean;
     setShowDeltas: (value: boolean) => void;
+    showEstimatedBalances: boolean;
+    setShowEstimatedBalances: (value: boolean) => void;
     invertSign: boolean;
     setInvertSign: (value: boolean) => void;
 }>;
@@ -51,6 +53,8 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
     operatingCurrencies,
     showDeltas,
     setShowDeltas,
+    showEstimatedBalances,
+    setShowEstimatedBalances,
     invertSign,
     setInvertSign,
 }) => {
@@ -134,6 +138,26 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                             secondary={
                                 <Typography variant="body2" color="text.secondary">
                                     When enabled, fetches transactions for delta calculations.
+                                </Typography>
+                            }
+                        />
+                    </ListItem>
+                    <Divider component="li" />
+                    <ListItem
+                        alignItems="flex-start"
+                        secondaryAction={
+                            <Checkbox
+                                checked={showEstimatedBalances}
+                                onChange={(e) => setShowEstimatedBalances(e.target.checked)}
+                                inputProps={{ "aria-label": "Show estimated balances" }}
+                            />
+                        }
+                    >
+                        <ListItemText
+                            primary="Show estimated balances"
+                            secondary={
+                                <Typography variant="body2" color="text.secondary">
+                                    When enabled, shows computed balances (from transactions) in gray for cells without explicit Balance directives.
                                 </Typography>
                             }
                         />

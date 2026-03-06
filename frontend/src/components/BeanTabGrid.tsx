@@ -25,6 +25,7 @@ import TuneIcon from "@mui/icons-material/Tune";
 import RestoreIcon from "@mui/icons-material/Restore";
 import { amber, blue, blueGrey, brown, cyan, green, lime, orange, pink, red, teal } from "@mui/material/colors";
 import type { BalancesData } from "../api/balances";
+import { useEstimatedBalances } from "../api/estimatedBalances";
 import type { Transaction } from "../api/transactions";
 import { BALANCE_TYPE_DISPLAY_MAPPING } from "../constants/balanceTypes";
 import type { AccountDelta } from "../types/deltas";
@@ -53,6 +54,7 @@ interface BeanTabGridProps {
   groupByAccount?: boolean;
   hideDatesWithLessThanEntries?: number;
   hideAccountsWithNoEntries?: boolean;
+  showEstimatedBalances?: boolean;
   invertSign?: boolean;
   sortingConfig?: { prop: string | null, order: "asc" | "desc" | undefined };
   onSortingChange?: (prop: string | null, order?: "asc" | "desc") => void;
@@ -672,12 +674,14 @@ type BalanceCellProps = (ColumnDataSchemaModel | ColumnTemplateProp) & {
   addition?: {
     balanceErrorKeys?: Set<string>;
     balanceErrorMessages?: Record<string, string>;
+    estimatedCellKeys?: Set<string>;
   };
 };
 
 const BalanceCell: React.FC<BalanceCellProps> = (props) => {
   const balanceErrorKeys = props.addition?.balanceErrorKeys ?? new Set<string>();
   const balanceErrorMessages = props.addition?.balanceErrorMessages ?? {};
+  const estimatedCellKeys = props.addition?.estimatedCellKeys ?? new Set<string>();
   if (!("model" in props) || !("prop" in props)) return null;
 
   const rawValue = props.model?.[props.prop];
@@ -687,6 +691,16 @@ const BalanceCell: React.FC<BalanceCellProps> = (props) => {
       ? parsed.value
       : Number.parseFloat(String(parsed.value));
   const balanceTypeKey = parsed.balanceType;
+
+  const propKey = String(props.prop);
+  const errorKey = props.model?.account && props.model?.currency
+    ? `${props.model.account}|${props.model.currency}|${propKey}`
+    : "";
+  const hasModified =
+    props.model?.account &&
+    props.model?.currency &&
+    beanTabStore.isModifiedCell(props.model.account, props.model.currency, propKey);
+  const isEstimated = !!errorKey && estimatedCellKeys.has(errorKey) && !hasModified;
 
   let valueNode: React.ReactNode;
   if (Number.isNaN(value)) {
@@ -699,8 +713,8 @@ const BalanceCell: React.FC<BalanceCellProps> = (props) => {
     valueNode = (
       <span
         style={{
-          color: value >= 0 ? "#2e7d32" : "#d32f2f",
-          fontWeight: "bold",
+          color: isEstimated ? "rgba(128, 128, 128, 0.4)" : (value >= 0 ? "#2e7d32" : "#d32f2f"),
+          fontWeight: isEstimated ? "normal" : "bold",
         }}
       >
         {value >= 0 ? formatted : `(${formatted})`}
@@ -721,16 +735,8 @@ const BalanceCell: React.FC<BalanceCellProps> = (props) => {
     valueNode
   );
 
-  const propKey = String(props.prop);
-  const errorKey = props.model?.account && props.model?.currency
-    ? `${props.model.account}|${props.model.currency}|${propKey}`
-    : "";
   const hasBalanceError = !!errorKey && balanceErrorKeys.has(errorKey);
   const balanceErrorMessage = errorKey ? balanceErrorMessages[errorKey] : undefined;
-  const hasModified =
-    props.model?.account &&
-    props.model?.currency &&
-    beanTabStore.isModifiedCell(props.model.account, props.model.currency, propKey);
 
   const cellWrapperStyle: React.CSSProperties = {
     height: "100%",
@@ -794,12 +800,14 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
   groupByAccount = true,
   hideDatesWithLessThanEntries = 0,
   hideAccountsWithNoEntries = false,
+  showEstimatedBalances = true,
   invertSign = false,
   sortingConfig,
   onSortingChange,
 }) => {
   let transformedData: GridRow[] = [];
   let columns: (ColumnRegular | ColumnGrouping)[] = [];
+  let usedEstimatedKeys = new Set<string>();
   const { balanceErrorKeys, balanceErrorMessages } = useMemo(() => {
     const errors = balancesData?.balanceErrors ?? [];
     const keys = new Set(errors.map((e) => `${e.account}|${e.currency}|${e.date}`));
@@ -852,6 +860,19 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
     }
     return computeDeltasByAccount(transactions, effectiveDates);
   }, [showDeltas, transactions, effectiveDates]);
+
+  const { data: estimatedBalancesData } = useEstimatedBalances(effectiveDates, {
+    enabled: showEstimatedBalances && !!balancesData && effectiveDates.length > 0,
+  });
+
+  const estimatedBalancesLookup = useMemo(() => {
+    const list = estimatedBalancesData?.estimatedBalances ?? [];
+    const lookup = new Map<string, number>();
+    for (const b of list) {
+      lookup.set(`${b.account}|${b.currency}|${b.date}`, b.number);
+    }
+    return lookup;
+  }, [estimatedBalancesData?.estimatedBalances]);
 
   if (balancesData) {
     const { balances, accounts } = balancesData;
@@ -930,6 +951,23 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
       }
     }
 
+    // Overlay estimated balances (from realization) where no asserted balance exists
+    usedEstimatedKeys.clear();
+    if (showEstimatedBalances && estimatedBalancesLookup.size > 0) {
+      for (const row of transformedData) {
+        for (const date of effectiveDates) {
+          if (row[date] === null || row[date] === undefined) {
+            const key = `${row.account}|${row.currency}|${date}`;
+            const est = estimatedBalancesLookup.get(key);
+            if (est !== undefined) {
+              row[date] = est;
+              usedEstimatedKeys.add(key);
+            }
+          }
+        }
+      }
+    }
+
     // Overlay any pending edited values
     const modifiedCells = beanTabStore.getAllModifiedCells();
 
@@ -946,7 +984,13 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
     }
     if (hideAccountsWithNoEntries) {
       transformedData = transformedData.filter((row) =>
-        effectiveDates.some((date) => row[date] !== null && row[date] !== undefined),
+        effectiveDates.some((date) => {
+          const val = row[date];
+          if (val === null || val === undefined) return false;
+          const key = `${row.account}|${row.currency}|${date}`;
+          if (usedEstimatedKeys.has(key)) return false; // estimated doesn't count as "entry"
+          return true; // actual Balance directive
+        }),
       );
     }
 
@@ -1093,7 +1137,7 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
           }
           source={transformedData}
           columns={columns}
-          additionalData={{ balanceErrorKeys, balanceErrorMessages, transactions, invertSign }}
+          additionalData={{ balanceErrorKeys, balanceErrorMessages, estimatedCellKeys: usedEstimatedKeys, transactions, invertSign }}
           hideAttribution={true}
           theme={isDarkMode ? "darkCompact" : "compact"}
           resize={true}

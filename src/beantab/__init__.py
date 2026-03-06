@@ -1,3 +1,4 @@
+import datetime
 import functools
 import logging
 import subprocess
@@ -26,6 +27,7 @@ from fava.helpers import FavaAPIError
 from flask import request
 
 from .BeantabFileManager import BeantabFileManager
+from .estimated_balances import compute_estimated_balances
 from .models import ModifiedCellData
 from .utils import is_original_entry
 
@@ -348,6 +350,45 @@ class BeanTab(FavaExtensionBase):
                 )
 
         return {"transactions": transactions_out}
+
+    @extension_endpoint("estimated_balances", methods=["POST"])
+    @api_response
+    def api_estimated_balances(self):
+        """Get estimated balances computed from transactions via realization.
+
+        Accepts POST body: { "dates": ["YYYY-MM-DD", ...] }
+        Returns: { "estimatedBalances": [{ account, currency, date, number }, ...] }
+
+        Similar to ops.balance plugin: filters entries by date, runs realization,
+        and extracts per-account per-currency balances.
+        """
+        if request.method != "POST":
+            raise FavaAPIError("Only POST method allowed for estimated_balances endpoint")
+
+        payload = request.get_json()
+        if not payload:
+            raise FavaAPIError("No JSON data provided")
+
+        raw_dates = payload.get("dates")
+        if raw_dates is None:
+            raise FavaAPIError("No 'dates' in payload")
+        if not isinstance(raw_dates, list):
+            raise FavaAPIError("'dates' must be a list")
+
+        dates_parsed: List[datetime.date] = []
+        for d in raw_dates:
+            if not isinstance(d, str):
+                raise FavaAPIError(f"Each date must be a string, got {type(d)}")
+            try:
+                dates_parsed.append(datetime.date.fromisoformat(d.strip()))
+            except ValueError as e:
+                raise FavaAPIError(f"Invalid date '{d}': {e}") from e
+
+        if not dates_parsed:
+            return {"estimatedBalances": []}
+
+        estimated = compute_estimated_balances(self.ledger.all_entries, dates_parsed)
+        return {"estimatedBalances": estimated}
 
     @extension_endpoint("updateBalances", methods=["POST"])
     @api_response

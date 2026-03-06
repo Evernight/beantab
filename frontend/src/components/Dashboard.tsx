@@ -69,6 +69,7 @@ type SearchParams = {
     hideAccountsWithNoEntries?: unknown;
     conversionCurrency?: unknown;
     showDeltas?: unknown;
+    showEstimatedBalances?: unknown;
     invertSign?: unknown;
 };
 
@@ -77,6 +78,7 @@ const SETTINGS_DEFAULTS = {
     hideDatesWithLessThanEntries: 0,
     hideAccountsWithNoEntries: false,
     showDeltas: true,
+    showEstimatedBalances: true,
     invertSign: false,
 } as const;
 
@@ -104,7 +106,7 @@ function readNumberParam(value: unknown, fallback: number): number {
 const Dashboard: React.FC = () => {
     const navigate = useNavigate();
     const searchParams = useSearch({ strict: false }) as SearchParams;
-    const { accountFilter, sortProp, sortOrder, conversionCurrency: conversionCurrencyParam, showDeltas: showDeltasParam, invertSign: invertSignParam } =
+    const { accountFilter, sortProp, sortOrder, conversionCurrency: conversionCurrencyParam, showDeltas: showDeltasParam, showEstimatedBalances: showEstimatedBalancesParam, invertSign: invertSignParam } =
         searchParams;
     const { data: balancesData, isLoading, error } = useBalances();
     const [accountFilterInput, setAccountFilterInput] = useState<string>("");
@@ -145,6 +147,7 @@ const Dashboard: React.FC = () => {
     const conversionCurrencyForApi = conversionCurrency === "none" ? "" : conversionCurrency;
 
     const showDeltas = readBooleanParam(showDeltasParam, SETTINGS_DEFAULTS.showDeltas);
+    const showEstimatedBalances = readBooleanParam(showEstimatedBalancesParam, SETTINGS_DEFAULTS.showEstimatedBalances);
     const invertSign = readBooleanParam(invertSignParam, SETTINGS_DEFAULTS.invertSign);
 
     const { data: transactionsData } = useTransactions(conversionCurrencyForApi, {
@@ -245,6 +248,20 @@ const Dashboard: React.FC = () => {
                 search: (prev: SearchState) => ({
                     ...prev,
                     showDeltas: value === SETTINGS_DEFAULTS.showDeltas ? undefined : value,
+                }),
+                replace: true,
+            });
+        },
+        [navigate],
+    );
+
+    const setShowEstimatedBalances = useCallback(
+        (value: boolean) => {
+            navigate({
+                to: ".",
+                search: (prev: SearchState) => ({
+                    ...prev,
+                    showEstimatedBalances: value === SETTINGS_DEFAULTS.showEstimatedBalances ? undefined : value,
                 }),
                 replace: true,
             });
@@ -392,6 +409,7 @@ const Dashboard: React.FC = () => {
                         additionalDates={beanTabStore.additionalDates}
                         sortedDates={sortedDates}
                         showDeltas={showDeltas}
+                        showEstimatedBalances={showEstimatedBalances}
                         transactions={transactionsData?.transactions}
                         groupByAccount={groupByAccount}
                         hideDatesWithLessThanEntries={hideDatesWithLessThanEntries}
@@ -420,6 +438,8 @@ const Dashboard: React.FC = () => {
                 operatingCurrencies={operatingCurrencies}
                 showDeltas={showDeltas}
                 setShowDeltas={setShowDeltas}
+                showEstimatedBalances={showEstimatedBalances}
+                setShowEstimatedBalances={setShowEstimatedBalances}
                 invertSign={invertSign}
                 setInvertSign={setInvertSign}
             />
