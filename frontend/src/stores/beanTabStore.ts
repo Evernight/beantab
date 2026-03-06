@@ -134,8 +134,10 @@ export class BeanTabStore {
     date: string,
     originalValue: string | number | null,
     newValue: string | number | null,
+    options?: { originalValueIsEstimated?: boolean },
   ) {
     const key = `${account}|${currency}|${date}`;
+    const originalValueIsEstimated = options?.originalValueIsEstimated ?? false;
 
     // If a cell is edited multiple times, keep the very first original value.
     const existing = this.modifiedCells.get(key);
@@ -147,8 +149,9 @@ export class BeanTabStore {
     const balanceType = parsed.balanceType;
 
     // If user edited the cell back to its original value, treat it as "not modified".
+    // Exception: when original was estimated, keep the modification (user is asserting the value).
     const originalCompare = existing ? existing.originalValue : originalValue;
-    if (valueToStore === originalCompare && !balanceType) {
+    if (valueToStore === originalCompare && !balanceType && !originalValueIsEstimated) {
       this.modifiedCells.delete(key);
       return;
     }

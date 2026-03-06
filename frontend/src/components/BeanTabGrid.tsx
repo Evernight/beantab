@@ -711,14 +711,14 @@ type BalanceCellProps = (ColumnDataSchemaModel | ColumnTemplateProp) & {
   addition?: {
     balanceErrorKeys?: Set<string>;
     balanceErrorMessages?: Record<string, string>;
-    estimatedCellKeys?: Set<string>;
+    estimatedCellValues?: Record<string, number>;
   };
 };
 
 const BalanceCell: React.FC<BalanceCellProps> = (props) => {
   const balanceErrorKeys = props.addition?.balanceErrorKeys ?? new Set<string>();
   const balanceErrorMessages = props.addition?.balanceErrorMessages ?? {};
-  const estimatedCellKeys = props.addition?.estimatedCellKeys ?? new Set<string>();
+  const estimatedCellValues = props.addition?.estimatedCellValues ?? {};
   if (!("model" in props) || !("prop" in props)) return null;
 
   const rawValue = props.model?.[props.prop];
@@ -737,7 +737,7 @@ const BalanceCell: React.FC<BalanceCellProps> = (props) => {
     props.model?.account &&
     props.model?.currency &&
     beanTabStore.isModifiedCell(props.model.account, props.model.currency, propKey);
-  const isEstimated = !!errorKey && estimatedCellKeys.has(errorKey) && !hasModified;
+  const isEstimated = !!errorKey && errorKey in estimatedCellValues && !hasModified;
 
   let valueNode: React.ReactNode;
   if (Number.isNaN(value)) {
@@ -844,7 +844,7 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
 }) => {
   let transformedData: GridRow[] = [];
   let columns: (ColumnRegular | ColumnGrouping)[] = [];
-  let usedEstimatedKeys = new Set<string>();
+  let estimatedCellValues: Record<string, number> = {};
   const { balanceErrorKeys, balanceErrorMessages } = useMemo(() => {
     const errors = balancesData?.balanceErrors ?? [];
     const keys = new Set(errors.map((e) => `${e.account}|${e.currency}|${e.date}`));
@@ -989,7 +989,7 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
     }
 
     // Overlay estimated balances (from realization) where no asserted balance exists
-    usedEstimatedKeys.clear();
+    estimatedCellValues = {};
     if (showEstimatedBalances && estimatedBalancesLookup.size > 0) {
       for (const row of transformedData) {
         for (const date of effectiveDates) {
@@ -998,7 +998,7 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
             const est = estimatedBalancesLookup.get(key);
             if (est !== undefined) {
               row[date] = est;
-              usedEstimatedKeys.add(key);
+              estimatedCellValues[key] = est;
             }
           }
         }
@@ -1025,7 +1025,7 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
           const val = row[date];
           if (val === null || val === undefined) return false;
           const key = `${row.account}|${row.currency}|${date}`;
-          if (usedEstimatedKeys.has(key)) return false; // estimated doesn't count as "entry"
+          if (key in estimatedCellValues) return false; // estimated doesn't count as "entry"
           return true; // actual Balance directive
         }),
       );
@@ -1174,7 +1174,7 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
           }
           source={transformedData}
           columns={columns}
-          additionalData={{ balanceErrorKeys, balanceErrorMessages, estimatedCellKeys: usedEstimatedKeys, transactions, invertSign }}
+          additionalData={{ balanceErrorKeys, balanceErrorMessages, estimatedCellValues, transactions, invertSign }}
           hideAttribution={true}
           theme={isDarkMode ? "darkCompact" : "compact"}
           resize={true}
@@ -1212,12 +1212,14 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
                 if (readonlyProps.has(prop) || String(prop).startsWith("deltas-")) continue;
                 const oldVal = model[prop] ?? null;
                 const newVal = rowChanges[prop] ?? null;
+                const key = `${model.account}|${model.currency}|${prop}`;
                 beanTabStore.addModifiedCell(
                   model.account,
                   model.currency,
                   prop,
                   oldVal as string | number | null,
                   newVal as string | number | null,
+                  { originalValueIsEstimated: key in estimatedCellValues },
                 );
               }
             }
@@ -1228,8 +1230,13 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
             const { prop, model, val, value: oldVal } = e.detail;
             
             const newValue = val ?? null;
-            if (val?.toString()?.trim() !== oldVal?.toString()?.trim() && model.account && model.currency) {
-              beanTabStore.addModifiedCell(model.account, model.currency, prop, oldVal, newValue);
+            const key = model.account && model.currency ? `${model.account}|${model.currency}|${prop}` : "";
+            const valueChanged = val?.toString()?.trim() !== oldVal?.toString()?.trim();
+            const wasEstimated = !!key && key in estimatedCellValues;
+            if (model.account && model.currency && (valueChanged || wasEstimated)) {
+              beanTabStore.addModifiedCell(model.account, model.currency, prop, oldVal, newValue, {
+                originalValueIsEstimated: wasEstimated,
+              });
             }
           }}
           onAftergridinit={(e: any) => {
