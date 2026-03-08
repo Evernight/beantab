@@ -13,7 +13,7 @@ BeanTab is meant to be a part of Beancount plugin ecosystem that makes that part
 
 ![BeanTab Extended](images/screenshot_extended.png)
 
-Also explore transactions and discrepancies using the advanced view.
+Also explore transactions and discrepancies using the advanced view. It's akin to an alternative editable version of the Fava's Balance Sheet page.
 
 ## Features
 
