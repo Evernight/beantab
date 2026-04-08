@@ -79,7 +79,7 @@ const SETTINGS_DEFAULTS = {
     hideDatesWithLessThanEntries: 0,
     hideAccountsWithNoEntries: false,
     convertTransactionsAtCost: true,
-    showDeltas: true,
+    showDeltas: false,
     showEstimatedBalances: true,
     invertSign: false,
 } as const;
