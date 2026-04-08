@@ -5,6 +5,12 @@ import type { AccountDelta } from "../types/deltas";
 const MODIFIED_CELLS_STORAGE_KEY = "beantab.modifiedCells";
 const ADDITIONAL_DATES_STORAGE_KEY = "beantab.additionalDates";
 
+interface AdditionalDatesStored {
+  dates: string[];
+  /** Local calendar date (YYYY-MM-DD) when this list was last saved. */
+  persistedDate: string;
+}
+
 function formatLocalISODate(d: Date): string {
     const yyyy = d.getFullYear().toString().padStart(4, "0");
     const mm = (d.getMonth() + 1).toString().padStart(2, "0");
@@ -12,11 +18,39 @@ function formatLocalISODate(d: Date): string {
     return `${yyyy}-${mm}-${dd}`;
 }
 
+function parseDateString(s: string): Date | null {
+  const trimmed = s.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return null;
+  // Time component required: bare YYYY-MM-DD is parsed as UTC and can shift the calendar day.
+  const ms = Date.parse(`${trimmed}T00:00:00`);
+  if (Number.isNaN(ms)) return null;
+  return new Date(ms); 
+}
+
+/** True if persisted local calendar date is strictly more than one day before today. */
+function isPersistedDateStale(persistedDate: string): boolean {
+  const persisted = parseDateString(persistedDate);
+  if (!persisted) return true;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  persisted.setHours(0, 0, 0, 0);
+  const diffDays = (today.getTime() - persisted.getTime()) / 86_400_000;
+  return diffDays > 1;
+}
+
 function getDefaultAdditionalDates(): string[] {
     const today = new Date();
     const tomorrow = new Date(today);
     tomorrow.setDate(today.getDate() + 1);
     return [formatLocalISODate(today), formatLocalISODate(tomorrow)];
+}
+
+function normalizeAdditionalDatesList(arr: unknown[]): string[] {
+  const list = arr
+    .filter((v): v is string => typeof v === "string")
+    .map((v) => v.trim())
+    .filter((v) => v.length > 0);
+  return list.length > 0 ? [...new Set(list)].sort() : [];
 }
 
 function loadModifiedCellsFromStorage(): Map<string, ModifiedCell> {
@@ -52,9 +86,16 @@ function loadAdditionalDatesFromStorage(): string[] {
     const raw = localStorage.getItem(ADDITIONAL_DATES_STORAGE_KEY);
     if (!raw) return getDefaultAdditionalDates();
     const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return getDefaultAdditionalDates();
-    const list = parsed.filter((v): v is string => typeof v === "string").map((v) => v.trim()).filter((v) => v.length > 0);
-    return list.length > 0 ? [...new Set(list)].sort() : getDefaultAdditionalDates();
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed) && "dates" in parsed) {
+      const rec = parsed as Partial<AdditionalDatesStored>;
+      if (!Array.isArray(rec.dates)) return getDefaultAdditionalDates();
+      if (typeof rec.persistedDate !== "string" || isPersistedDateStale(rec.persistedDate)) {
+        return getDefaultAdditionalDates();
+      }
+      const normalized = normalizeAdditionalDatesList(rec.dates);
+      return normalized.length > 0 ? normalized : getDefaultAdditionalDates();
+    }
+    return getDefaultAdditionalDates();
   } catch {
     return getDefaultAdditionalDates();
   }
@@ -63,7 +104,11 @@ function loadAdditionalDatesFromStorage(): string[] {
 function saveAdditionalDatesToStorage(dates: string[]): void {
   if (typeof window === "undefined") return;
   try {
-    localStorage.setItem(ADDITIONAL_DATES_STORAGE_KEY, JSON.stringify(dates));
+    const payload: AdditionalDatesStored = {
+      dates,
+      persistedDate: formatLocalISODate(new Date()),
+    };
+    localStorage.setItem(ADDITIONAL_DATES_STORAGE_KEY, JSON.stringify(payload));
   } catch {
     // Ignore quota / privacy errors
   }
