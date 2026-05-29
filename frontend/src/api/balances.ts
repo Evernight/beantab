@@ -7,7 +7,14 @@ export interface BeanTabBalance {
   date: string;
   number: number;
   type: string;
+  filename?: string;
+  lineno?: number;
 }
+
+export type BalanceSourceLocation = {
+  filename: string;
+  lineno: number;
+};
 
 export interface BeanTabAccount {
   account: string;

@@ -46,11 +46,22 @@ class BeanTabBalance:
     date: str  # date in ISO format
     number: float  # number from the amount
     type: BalanceType
+    filename: str | None = None
+    lineno: int | None = None
 
     def to_dict(self) -> dict:
         data_dict = asdict(self)
         data_dict["type"] = self.type.value
+        if data_dict.get("filename") is None:
+            data_dict.pop("filename", None)
+        if data_dict.get("lineno") is None:
+            data_dict.pop("lineno", None)
         return data_dict
+
+
+def _entry_source(entry) -> tuple[str | None, int | None]:
+    meta = entry.meta or {}
+    return meta.get("filename"), meta.get("lineno")
 
 
 @dataclass
@@ -190,12 +201,15 @@ class BeanTab(FavaExtensionBase):
                     balance_type_config,
                     default_balance_type,
                 )
+                filename, lineno = _entry_source(entry)
                 bean_tab_balance = BeanTabBalance(
                     account=entry.account,
                     currency=entry.amount.currency,
                     date=entry.date.isoformat(),
                     number=float(entry.amount.number),
                     type=BalanceType.REGULAR,
+                    filename=filename,
+                    lineno=lineno,
                 )
                 balances.append(bean_tab_balance.to_dict())
 
@@ -213,12 +227,15 @@ class BeanTab(FavaExtensionBase):
                     balance_type_config,
                     default_balance_type,
                 )
+                filename, lineno = _entry_source(entry)
                 bean_tab_balance = BeanTabBalance(
                     account=parsed.account,
                     currency=parsed.amount.currency,
                     date=entry.date.isoformat(),
                     number=float(parsed.amount.number),
                     type=BalanceType.VALUATION,
+                    filename=filename,
+                    lineno=lineno,
                 )
                 balances.append(bean_tab_balance.to_dict())
 
@@ -250,6 +267,7 @@ class BeanTab(FavaExtensionBase):
                     # all_currencies = account_currencies.get(parsed.account, set())
                     # asserted_amounts.extend([Amount(0.0, currency) for currency in all_currencies - set(asserted_amounts)])
 
+                filename, lineno = _entry_source(entry)
                 for amount_obj in asserted_amounts:
                     bean_tab_balance = BeanTabBalance(
                         account=parsed.account,
@@ -257,6 +275,8 @@ class BeanTab(FavaExtensionBase):
                         date=entry.date.isoformat(),
                         number=float(amount_obj.number),
                         type=balance_type_for_display,
+                        filename=filename,
+                        lineno=lineno,
                     )
                     balances.append(bean_tab_balance.to_dict())
 

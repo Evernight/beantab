@@ -81,11 +81,6 @@ wheels = [
 ]
 
 [[package]]
-name = "beancount-lazy-plugins"
-version = "0.0.post1.dev103+g75b048627"
-source = { git = "https://github.com/Evernight/beancount-lazy-plugins#75b048627b5743efe64622223b861ee0d61e6297" }
-
-[[package]]
 name = "beangulp"
 version = "0.2.0"
 source = { registry = "https://pypi.org/simple" }
@@ -119,10 +114,9 @@ wheels = [
 
 [[package]]
 name = "beantab"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "." }
 dependencies = [
-    { name = "beancount-lazy-plugins" },
     { name = "fava" },
 ]
 
@@ -136,10 +130,7 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [
-    { name = "beancount-lazy-plugins", git = "https://github.com/Evernight/beancount-lazy-plugins" },
-    { name = "fava", specifier = ">=1.30.3" },
-]
+requires-dist = [{ name = "fava", specifier = ">=1.30.3" }]
 
 [package.metadata.requires-dev]
 dev = [

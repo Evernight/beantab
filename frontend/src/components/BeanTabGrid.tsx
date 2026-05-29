@@ -45,6 +45,12 @@ import {
   getCurrencyDisplayLabel,
 } from "../utils/currencyDisplayUtils";
 import {
+  buildAccountUrl,
+  buildEditorUrl,
+  buildExpensesDashboardUrl,
+  buildJournalUrl,
+} from "../utils/favaTools";
+import {
   beanTabStore,
   BeanTabStore,
   type GridRow,
@@ -153,36 +159,6 @@ function computeDeltasByAccount(
     }
   }
   return deltasByAccount;
-}
-
-function addDay(dateStr: string): string {
-  const d = new Date(dateStr);
-  d.setDate(d.getDate() + 1);
-  return d.toISOString().slice(0, 10);
-}
-
-function buildJournalUrl(account: string, date: string, prevDate: string): string {
-  const basePath = window.location.pathname.replace(/\/extension\/[^/]+(\/.*)?$/, "") || "/";
-  const timeFilter =
-    prevDate === ""
-      ? `1000-01-01 to ${date}`
-      : `${addDay(prevDate)} to ${date}`;
-  const params = new URLSearchParams();
-  params.set("account", account);
-  params.set("time", timeFilter);
-  return `${window.location.origin}${basePath}/journal?${params}`;
-}
-
-function buildExpensesDashboardUrl(date: string, prevDate: string): string {
-  const basePath = window.location.pathname.replace(/\/extension\/[^/]+(\/.*)?$/, "") || "/";
-  const timeFilter =
-    prevDate === ""
-      ? `1000-01-01 to ${date}`
-      : `${addDay(prevDate)} to ${date}`;
-  const params = new URLSearchParams();
-  params.set("dashboard", "expenses-detailed");
-  params.set("time", timeFilter);
-  return `${window.location.origin}${basePath}/extension/FavaDashboards/?${params}`;
 }
 
 function filterTransactionsForPeriod(
@@ -652,12 +628,6 @@ const DefaultBalanceTypeHeader: React.FC<ColumnDataSchemaModel | ColumnTemplateP
   />
 );
 
-/** Base path for the current Fava ledger (e.g. /main). Used to build links to account pages. */
-function getBeancountBasePath(): string {
-  const segment = location.pathname.split("/")[1];
-  return segment ? `/${segment}` : "";
-}
-
 type AccountCellProps = (ColumnDataSchemaModel | ColumnTemplateProp) & {
   onAccountClick: (account: string) => void;
 };
@@ -667,9 +637,7 @@ const AccountCell: React.FC<AccountCellProps> = (props) => {
   const accountName = value != null ? String(value) : "";
   const iconColor = getColorFromHashString(accountName);
   const onAccountClick = props.onAccountClick;
-  const accountHref = !onAccountClick && accountName
-    ? `${getBeancountBasePath()}/account/${accountName}/`
-    : "";
+  const accountHref = !onAccountClick && accountName ? buildAccountUrl(accountName) : "";
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (onAccountClick && accountName) {
@@ -745,13 +713,54 @@ type BalanceCellProps = (ColumnDataSchemaModel | ColumnTemplateProp) & {
     balanceErrorKeys?: Set<string>;
     balanceErrorMessages?: Record<string, string>;
     estimatedCellValues?: Record<string, number>;
+    balanceSources?: Record<string, { filename: string; lineno: number }>;
   };
+};
+
+const BALANCE_SOURCE_TOOLTIP_ENTER_DELAY_MS = 1000;
+
+type BalanceSourceTooltipProps = {
+  source?: { filename: string; lineno: number };
+  children: React.ReactNode;
+};
+
+const BalanceSourceTooltip: React.FC<BalanceSourceTooltipProps> = ({ source, children }) => {
+  if (!source?.filename || source.lineno == null) return <>{children}</>;
+  const editorUrl = buildEditorUrl(source.filename, source.lineno);
+  const label = `${source.filename}:${source.lineno}`;
+  return (
+    <Tooltip
+      arrow
+      enterDelay={BALANCE_SOURCE_TOOLTIP_ENTER_DELAY_MS}
+      enterNextDelay={BALANCE_SOURCE_TOOLTIP_ENTER_DELAY_MS}
+      leaveDelay={400}
+      slotProps={{ popper: { sx: { pointerEvents: "auto" } } }}
+      title={
+        <Box sx={{ p: 0.5, maxWidth: 420 }}>
+          <Link
+            href={editorUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            sx={{ fontSize: "0.75rem", wordBreak: "break-all" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {label}
+          </Link>
+        </Box>
+      }
+    >
+      <Box component="span" sx={{ display: "inline-flex", width: "100%", height: "100%", alignItems: "center" }}>
+        {children}
+      </Box>
+    </Tooltip>
+  );
 };
 
 const BalanceCell: React.FC<BalanceCellProps> = (props) => {
   const balanceErrorKeys = props.addition?.balanceErrorKeys ?? new Set<string>();
   const balanceErrorMessages = props.addition?.balanceErrorMessages ?? {};
   const estimatedCellValues = props.addition?.estimatedCellValues ?? {};
+  const balanceSources = props.addition?.balanceSources ?? {};
   if (!("model" in props) || !("prop" in props)) return null;
 
   const rawValue = props.model?.[props.prop];
@@ -763,9 +772,12 @@ const BalanceCell: React.FC<BalanceCellProps> = (props) => {
   const balanceTypeKey = parsed.balanceType;
 
   const propKey = String(props.prop);
-  const errorKey = props.model?.account && props.model?.currency
-    ? `${props.model.account}|${props.model.currency}|${propKey}`
-    : "";
+  const sourceKey =
+    props.model?.account && props.model?.currency
+      ? `${props.model.account}|${props.model.currency}|${propKey}`
+      : "";
+  const balanceSource = sourceKey ? balanceSources[sourceKey] : undefined;
+  const errorKey = sourceKey;
   const hasModified =
     props.model?.account &&
     props.model?.currency &&
@@ -840,21 +852,27 @@ const BalanceCell: React.FC<BalanceCellProps> = (props) => {
   ) : null;
 
   if (!hasModified) {
-    if (!hasBalanceError) return content;
+    if (!hasBalanceError) {
+      return <BalanceSourceTooltip source={balanceSource}>{content}</BalanceSourceTooltip>;
+    }
     return (
-      <div style={cellWrapperStyle}>
-        {errorIndicator}
-        {content}
-      </div>
+      <BalanceSourceTooltip source={balanceSource}>
+        <div style={cellWrapperStyle}>
+          {errorIndicator}
+          {content}
+        </div>
+      </BalanceSourceTooltip>
     );
   }
 
   return (
-    <div style={cellWrapperStyle}>
-      {errorIndicator}
-      {content}
-      <RevertButton model={props.model} prop={propKey} />
-    </div>
+    <BalanceSourceTooltip source={balanceSource}>
+      <div style={cellWrapperStyle}>
+        {errorIndicator}
+        {content}
+        <RevertButton model={props.model} prop={propKey} />
+      </div>
+    </BalanceSourceTooltip>
   );
 };
 
@@ -891,6 +909,19 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
     }
     return { balanceErrorKeys: keys, balanceErrorMessages: messages };
   }, [balancesData?.balanceErrors]);
+
+  const balanceSources = useMemo(() => {
+    const map: Record<string, { filename: string; lineno: number }> = {};
+    for (const b of balancesData?.balances ?? []) {
+      if (b.filename && b.lineno != null) {
+        map[`${b.account}|${b.currency}|${b.date}`] = {
+          filename: b.filename,
+          lineno: b.lineno,
+        };
+      }
+    }
+    return map;
+  }, [balancesData?.balances]);
 
   const effectiveDates = useMemo(() => {
     if (!balancesData) return [];
@@ -1216,7 +1247,7 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
           }
           source={transformedData}
           columns={columns}
-          additionalData={{ balanceErrorKeys, balanceErrorMessages, estimatedCellValues, transactions, invertSign }}
+          additionalData={{ balanceErrorKeys, balanceErrorMessages, estimatedCellValues, balanceSources, transactions, invertSign }}
           hideAttribution={true}
           theme={isDarkMode ? "darkCompact" : "compact"}
           resize={true}
