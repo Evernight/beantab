@@ -8,6 +8,8 @@ import {
   CircularProgress,
   Badge,
   IconButton,
+  Menu,
+  MenuItem,
   Tooltip,
   Typography,
 } from "@mui/material";
@@ -23,6 +25,13 @@ import SaveIcon from "@mui/icons-material/Save";
 import { beanTabStore } from "../stores/beanTabStore";
 import { saveModifiedCells, safetyCheck, reloadLedger } from "../api/save";
 import SaveChangesDialog from "./SaveChangesDialog";
+import { getCurrencySymbol, getCurrencyDisplayLabel } from "../utils/currencyDisplayUtils";
+
+function scaleCurrencyButtonLabel(currency: string): string {
+  if (currency === "none" || !currency) return "—";
+  return getCurrencySymbol(currency) ?? currency;
+}
+
 interface TableEditControlsProps {
   onSave?: () => void;
   onRevert?: () => void;
@@ -30,6 +39,9 @@ interface TableEditControlsProps {
   onToggleShowDeltas?: () => void;
   /** Number of account rows hidden by hideAccountsWithNoEntries */
   hiddenAccountsCount?: number;
+  conversionCurrency?: string;
+  setConversionCurrency?: (value: string) => void;
+  operatingCurrencies?: string[];
 }
 
 const CHANGED_POLL_INTERVAL_MS = 1000;
@@ -56,6 +68,9 @@ const TableEditControls: React.FC<TableEditControlsProps> = ({
   showDeltas = false,
   onToggleShowDeltas,
   hiddenAccountsCount = 0,
+  conversionCurrency = "none",
+  setConversionCurrency,
+  operatingCurrencies = [],
 }) => {
   const [saving, setSaving] = useState(false);
   const [waitingForReload, setWaitingForReload] = useState(false);
@@ -63,6 +78,7 @@ const TableEditControls: React.FC<TableEditControlsProps> = ({
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [safetyWarning, setSafetyWarning] = useState<string | null>(null);
   const [saveTakingTooLongWarning, setSaveTakingTooLongWarning] = useState<string | null>(null);
+  const [currencyMenuAnchor, setCurrencyMenuAnchor] = useState<null | HTMLElement>(null);
   const hasChanges = beanTabStore.hasModifiedCells;
 
   useEffect(() => {
@@ -189,6 +205,63 @@ const TableEditControls: React.FC<TableEditControlsProps> = ({
                   <MultipleStopIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
+            )}
+            {showDeltas && setConversionCurrency && (
+              <>
+                <Tooltip title="Delta bar scale currency">
+                  <IconButton
+                    size="small"
+                    onClick={(e) => setCurrencyMenuAnchor(e.currentTarget)}
+                    color={conversionCurrency !== "none" ? "primary" : "default"}
+                    aria-label="Delta bar scale currency"
+                    aria-haspopup="listbox"
+                    aria-expanded={Boolean(currencyMenuAnchor)}
+                  >
+                    <Typography
+                      component="span"
+                      sx={{
+                        fontSize: "0.875rem",
+                        fontWeight: conversionCurrency !== "none" ? 600 : 400,
+                        lineHeight: 1,
+                        opacity: conversionCurrency !== "none" ? 1 : 0.55,
+                      }}
+                    >
+                      {scaleCurrencyButtonLabel(conversionCurrency)}
+                    </Typography>
+                  </IconButton>
+                </Tooltip>
+                <Menu
+                  anchorEl={currencyMenuAnchor}
+                  open={Boolean(currencyMenuAnchor)}
+                  onClose={() => setCurrencyMenuAnchor(null)}
+                  anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+                  transformOrigin={{ vertical: "top", horizontal: "left" }}
+                >
+                  <MenuItem
+                    selected={conversionCurrency === "none"}
+                    onClick={() => {
+                      setConversionCurrency("none");
+                      setCurrencyMenuAnchor(null);
+                    }}
+                    sx={{ fontSize: "0.85rem" }}
+                  >
+                    —
+                  </MenuItem>
+                  {operatingCurrencies.map((ccy) => (
+                    <MenuItem
+                      key={ccy}
+                      selected={conversionCurrency === ccy}
+                      onClick={() => {
+                        setConversionCurrency(ccy);
+                        setCurrencyMenuAnchor(null);
+                      }}
+                      sx={{ fontSize: "0.85rem" }}
+                    >
+                      {getCurrencyDisplayLabel(ccy)}
+                    </MenuItem>
+                  ))}
+                </Menu>
+              </>
             )}
             {showDeltas && (
               <ButtonGroup size="small">
