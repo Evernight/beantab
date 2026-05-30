@@ -78,9 +78,26 @@ interface BeanTabGridProps {
   invertSign?: boolean;
   sortingConfig?: { prop: string | null, order: "asc" | "desc" | undefined };
   onSortingChange?: (prop: string | null, order?: "asc" | "desc") => void;
-  onFilterStatsChange?: (stats: { hiddenAccountsCount: number }) => void;
+  onFilterStatsChange?: (stats: {
+    emptyAccountsCount: number;
+    hiddenDatesCount: number;
+  }) => void;
   /** When provided, clicking account name sets filter to this account instead of navigating to journal */
   onAccountClick: (account: string) => void;
+}
+
+function gridRowHasBalanceEntry(
+  row: GridRow,
+  effectiveDates: string[],
+  estimatedCellValues: Record<string, number>,
+): boolean {
+  return effectiveDates.some((date) => {
+    const val = row[date];
+    if (val === null || val === undefined) return false;
+    const key = `${row.account}|${row.currency}|${date}`;
+    if (key in estimatedCellValues) return false;
+    return true;
+  });
 }
 
 function createEmptyAccountDelta(): AccountDelta {
@@ -1016,7 +1033,7 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
   onAccountClick,
 }) => {
   let transformedData: GridRow[] = [];
-  let hiddenAccountsCount = 0;
+  let emptyAccountsCount = 0;
   let columns: (ColumnRegular | ColumnGrouping)[] = [];
   let estimatedCellValues: Record<string, number> = {};
   const { balanceErrorKeys, balanceErrorMessages } = useMemo(() => {
@@ -1043,8 +1060,8 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
     return map;
   }, [balancesData?.balances]);
 
-  const effectiveDates = useMemo(() => {
-    if (!balancesData) return [];
+  const { effectiveDates, hiddenDatesCount } = useMemo(() => {
+    if (!balancesData) return { effectiveDates: [] as string[], hiddenDatesCount: 0 };
     const { balances } = balancesData;
     const filtered =
       accountsFilter && accountsFilter.length > 0
@@ -1063,15 +1080,19 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
       }
       s.add(b.account);
     }
-    return hideDatesWithLessThanEntries <= 0
-      ? sortedDates.filter((date) => !hideDatesSet.has(date))
-      : sortedDates
-          .filter((date) => {
+    const candidateDates = sortedDates.filter((date) => !hideDatesSet.has(date));
+    const effective =
+      hideDatesWithLessThanEntries <= 0
+        ? candidateDates
+        : sortedDates.filter((date) => {
             if (hideDatesSet.has(date)) return false;
             if (additionalShowDatesSet.has(date)) return true;
             const entryCount = accountsByDate.get(date)?.size ?? 0;
             return entryCount >= hideDatesWithLessThanEntries;
           });
+    const hiddenDatesCount =
+      hideDatesWithLessThanEntries > 0 ? candidateDates.length - effective.length : 0;
+    return { effectiveDates: effective, hiddenDatesCount };
   }, [
     balancesData,
     accountsFilter,
@@ -1116,8 +1137,8 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
   }, [estimatedBalancesData?.estimatedBalances]);
 
   useEffect(() => {
-    onFilterStatsChange?.({ hiddenAccountsCount });
-  }, [onFilterStatsChange, hiddenAccountsCount]);
+    onFilterStatsChange?.({ emptyAccountsCount, hiddenDatesCount });
+  }, [onFilterStatsChange, emptyAccountsCount, hiddenDatesCount]);
 
   if (balancesData) {
     const { balances, accounts } = balancesData;
@@ -1227,18 +1248,13 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
       const symbol = cell.balanceType ? BALANCE_TYPE_DISPLAY_MAPPING[cell.balanceType]?.symbol : null;
       row[cell.date] = symbol ? `${cell.newValue}${symbol}` : cell.newValue;
     }
+    emptyAccountsCount = transformedData.filter(
+      (row) => !gridRowHasBalanceEntry(row, effectiveDates, estimatedCellValues),
+    ).length;
     if (hideAccountsWithNoEntries) {
-      const beforeCount = transformedData.length;
       transformedData = transformedData.filter((row) =>
-        effectiveDates.some((date) => {
-          const val = row[date];
-          if (val === null || val === undefined) return false;
-          const key = `${row.account}|${row.currency}|${date}`;
-          if (key in estimatedCellValues) return false; // estimated doesn't count as "entry"
-          return true; // actual Balance directive
-        }),
+        gridRowHasBalanceEntry(row, effectiveDates, estimatedCellValues),
       );
-      hiddenAccountsCount = beforeCount - transformedData.length;
     }
 
     const accountColumn = {

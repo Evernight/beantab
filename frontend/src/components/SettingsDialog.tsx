@@ -7,15 +7,9 @@ import {
     DialogContent,
     DialogTitle,
     Divider,
-    FormControl,
-    InputLabel,
     List,
     ListItem,
     ListItemText,
-    MenuItem,
-    Select,
-    SelectChangeEvent,
-    TextField,
     Typography,
 } from "@mui/material";
 
@@ -46,17 +40,17 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
     onClose,
     groupByAccount,
     setGroupByAccount,
-    hideDatesWithLessThanEntries,
-    setHideDatesWithLessThanEntries,
-    hideAccountsWithNoEntries,
-    setHideAccountsWithNoEntries,
-    conversionCurrency,
-    setConversionCurrency,
+    hideDatesWithLessThanEntries: _hideDatesWithLessThanEntries,
+    setHideDatesWithLessThanEntries: _setHideDatesWithLessThanEntries,
+    hideAccountsWithNoEntries: _hideAccountsWithNoEntries,
+    setHideAccountsWithNoEntries: _setHideAccountsWithNoEntries,
+    conversionCurrency: _conversionCurrency,
+    setConversionCurrency: _setConversionCurrency,
     convertTransactionsAtCost,
     setConvertTransactionsAtCost,
-    operatingCurrencies,
-    showDeltas,
-    setShowDeltas,
+    operatingCurrencies: _operatingCurrencies,
+    showDeltas: _showDeltas,
+    setShowDeltas: _setShowDeltas,
     showEstimatedBalances,
     setShowEstimatedBalances,
     invertSign,
@@ -86,7 +80,8 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                             }
                         />
                     </ListItem>
-                    <Divider component="li" />
+                    {/* Min entries, hide empty accounts: toolbar under the table (N+ button, hide empty rows link) */}
+                    {/* <Divider component="li" />
                     <ListItem alignItems="flex-start">
                         <TextField
                             label="Only show dates with X or more entries"
@@ -94,15 +89,9 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                             inputProps={{ min: 0, step: 1 }}
                             fullWidth
                             value={hideDatesWithLessThanEntries}
-                            onChange={(e) => {
-                                const raw = e.target.value;
-                                const parsed = Number.parseInt(raw, 10);
-                                if (Number.isNaN(parsed)) {
-                                    setHideDatesWithLessThanEntries(0);
-                                    return;
-                                }
-                                setHideDatesWithLessThanEntries(Math.max(0, parsed));
-                            }}
+                            onChange={(e) =>
+                                setHideDatesWithLessThanEntries(parseMinDateEntriesInput(e.target.value))
+                            }
                             helperText="Counts distinct accounts with a non-empty value on the date (multiple currencies count as one). Use 0 to show all dates."
                         />
                     </ListItem>
@@ -125,7 +114,8 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                                 </Typography>
                             }
                         />
-                    </ListItem>
+                    </ListItem> */}
+                    {/* Show deltas: toolbar under the table */}
                     {/* <Divider component="li" />
                     <ListItem
                         alignItems="flex-start"
@@ -167,7 +157,8 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                         />
                     </ListItem>
                     <Divider component="li" />
-                    <ListItem alignItems="flex-start">
+                    {/* Delta bar scale currency: toolbar when deltas are visible */}
+                    {/* <ListItem alignItems="flex-start">
                         <FormControl fullWidth size="small">
                             <InputLabel id="conversion-currency-label">Delta Bar Scale Currency</InputLabel>
                             <Select
@@ -200,7 +191,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                                 </Typography>
                             }
                         />
-                    </ListItem>
+                    </ListItem> */}
                     <ListItem
                         alignItems="flex-start"
                         secondaryAction={

@@ -27,6 +27,7 @@ import { beanTabStore } from "../stores/beanTabStore";
 import { saveModifiedCells, safetyCheck, reloadLedger } from "../api/save";
 import SaveChangesDialog from "./SaveChangesDialog";
 import { getCurrencySymbol, getCurrencyDisplayLabel } from "../utils/currencyDisplayUtils";
+import { MinDateEntriesControl } from "./MinDateEntriesControl";
 
 function scaleCurrencyButtonLabel(currency: string): string {
   if (currency === "none" || !currency) return "—";
@@ -38,10 +39,13 @@ interface TableEditControlsProps {
   onRevert?: () => void;
   showDeltas?: boolean;
   onToggleShowDeltas?: () => void;
-  /** Number of account rows hidden by hideAccountsWithNoEntries */
-  hiddenAccountsCount?: number;
+  /** Account rows with no balance entries on shown dates */
+  emptyAccountsCount?: number;
   hideAccountsWithNoEntries?: boolean;
   onToggleHideAccountsWithNoEntries?: () => void;
+  hideDatesWithLessThanEntries?: number;
+  setHideDatesWithLessThanEntries?: (value: number) => void;
+  hiddenDatesCount?: number;
   conversionCurrency?: string;
   setConversionCurrency?: (value: string) => void;
   operatingCurrencies?: string[];
@@ -70,9 +74,12 @@ const TableEditControls: React.FC<TableEditControlsProps> = ({
   onRevert,
   showDeltas = false,
   onToggleShowDeltas,
-  hiddenAccountsCount = 0,
+  emptyAccountsCount = 0,
   hideAccountsWithNoEntries = false,
   onToggleHideAccountsWithNoEntries,
+  hideDatesWithLessThanEntries = 0,
+  setHideDatesWithLessThanEntries,
+  hiddenDatesCount = 0,
   conversionCurrency = "none",
   setConversionCurrency,
   operatingCurrencies = [],
@@ -199,6 +206,13 @@ const TableEditControls: React.FC<TableEditControlsProps> = ({
         }}
       >
           <Box sx={{ flex: 1, display: "flex", alignItems: "center", gap: 1 }}>
+            {setHideDatesWithLessThanEntries && (
+              <MinDateEntriesControl
+                value={hideDatesWithLessThanEntries}
+                onChange={setHideDatesWithLessThanEntries}
+                hiddenDatesCount={hiddenDatesCount}
+              />
+            )}
             {onToggleShowDeltas && (
               <Tooltip title={showDeltas ? "Hide deltas" : "Show deltas"}>
                 <IconButton
@@ -289,12 +303,12 @@ const TableEditControls: React.FC<TableEditControlsProps> = ({
                 ))}
               </ButtonGroup>
             )}
-            {hiddenAccountsCount > 0 && onToggleHideAccountsWithNoEntries && (
+            {onToggleHideAccountsWithNoEntries && emptyAccountsCount > 0 && (
               <Tooltip
                 title={
                   hideAccountsWithNoEntries
                     ? "Click to show hidden accounts"
-                    : "Click to hide accounts with no entries on shown dates"
+                    : `Hide ${emptyAccountsCount} account row${emptyAccountsCount !== 1 ? "s" : ""} with no balance entries on shown dates`
                 }
               >
                 <Link
@@ -310,7 +324,9 @@ const TableEditControls: React.FC<TableEditControlsProps> = ({
                     textDecorationColor: "inherit",
                   }}
                 >
-                  {hiddenAccountsCount} account{hiddenAccountsCount !== 1 ? "s" : ""} hidden
+                  {hideAccountsWithNoEntries
+                    ? `${emptyAccountsCount} account${emptyAccountsCount !== 1 ? "s" : ""} hidden`
+                    : "Hide empty rows"}
                 </Link>
               </Tooltip>
             )}

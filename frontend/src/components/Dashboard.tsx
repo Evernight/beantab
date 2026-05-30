@@ -116,7 +116,10 @@ const Dashboard: React.FC = () => {
     const [additionalDatesInput, setAdditionalDatesInput] = useState<string>("");
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [helpOpen, setHelpOpen] = useState(false);
-    const [filterStats, setFilterStats] = useState<{ hiddenAccountsCount: number }>({ hiddenAccountsCount: 0 });
+    const [filterStats, setFilterStats] = useState<{
+        emptyAccountsCount: number;
+        hiddenDatesCount: number;
+    }>({ emptyAccountsCount: 0, hiddenDatesCount: 0 });
     const groupByAccount = useMemo(
         () => readBooleanParam(searchParams.groupByAccount, SETTINGS_DEFAULTS.groupByAccount),
         [searchParams.groupByAccount],
@@ -467,16 +470,22 @@ const Dashboard: React.FC = () => {
                         onSortingChange={setSorting}
                         onFilterStatsChange={(stats) =>
                             setFilterStats((prev) =>
-                                prev.hiddenAccountsCount === stats.hiddenAccountsCount ? prev : stats,
+                                prev.emptyAccountsCount === stats.emptyAccountsCount &&
+                                prev.hiddenDatesCount === stats.hiddenDatesCount
+                                    ? prev
+                                    : stats,
                             )
                         }
                         onAccountClick={handleAccountClick}
                     />
 
                     <TableEditControls
+                      hideDatesWithLessThanEntries={hideDatesWithLessThanEntries}
+                      setHideDatesWithLessThanEntries={setHideDatesWithLessThanEntries}
+                      hiddenDatesCount={filterStats.hiddenDatesCount}
                       showDeltas={showDeltas}
                       onToggleShowDeltas={() => setShowDeltas(!showDeltas)}
-                      hiddenAccountsCount={filterStats.hiddenAccountsCount}
+                      emptyAccountsCount={filterStats.emptyAccountsCount}
                       hideAccountsWithNoEntries={hideAccountsWithNoEntries}
                       onToggleHideAccountsWithNoEntries={() =>
                         setHideAccountsWithNoEntries(!hideAccountsWithNoEntries)
