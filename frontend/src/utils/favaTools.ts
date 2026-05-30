@@ -1,3 +1,8 @@
+import type { AccountDelta } from "../types/deltas";
+
+/** Substring in pad transaction narrations (matches BeanTabGrid delta logic). */
+export const PADDING_NARRATION = "Padding";
+
 /** Base path for the current Fava ledger (e.g. /main). Works from extension and report pages. */
 export function getFavaBasePath(): string {
   const withoutExtension =
@@ -25,10 +30,34 @@ export function buildEditorUrl(filename: string, lineno: number): string {
   return `${window.location.origin}${getFavaBasePath()}/editor/?${params}`;
 }
 
-export function buildJournalUrl(account: string, date: string, prevDate: string): string {
+export function buildJournalAdvancedFilter(
+  segmentKey: keyof AccountDelta,
+  currency: string,
+): string {
+  const unitsMatch = `units:"${currency}"`;
+  if (segmentKey === "padNegative" || segmentKey === "padPositive") {
+    return `${PADDING_NARRATION} any(all(${unitsMatch}))`;
+  }
+  const typeMatch = segmentKey.replace(/Positive|Negative$/, "");
+  const accountType = typeMatch.charAt(0).toUpperCase() + typeMatch.slice(1);
+  return `any(all(account:"^${accountType}:", ${unitsMatch}))`;
+}
+
+export function buildJournalUrl(
+  account: string,
+  date: string,
+  prevDate: string,
+  options?: { segmentKey?: keyof AccountDelta; currency?: string },
+): string {
   const params = new URLSearchParams();
   params.set("account", account);
   params.set("time", buildTimeFilter(date, prevDate));
+  if (options?.segmentKey && options.currency) {
+    params.set(
+      "filter",
+      buildJournalAdvancedFilter(options.segmentKey, options.currency),
+    );
+  }
   return `${window.location.origin}${getFavaBasePath()}/journal?${params}`;
 }
 

@@ -49,6 +49,7 @@ import {
   buildEditorUrl,
   buildExpensesDashboardUrl,
   buildJournalUrl,
+  PADDING_NARRATION,
 } from "../utils/favaTools";
 import {
   beanTabStore,
@@ -207,8 +208,6 @@ function filterTransactionsForPeriod(
   });
 }
 
-const PADDING_NARRATION = "Padding";
-
 function transactionHasPostingForSegment(
   txn: Transaction,
   currency: string,
@@ -240,7 +239,6 @@ const DeltaBarSegment: React.FC<{
   maxSum: number;
   direction: "left" | "right";
   currency?: string;
-  journalUrl?: string;
   account?: string;
   date?: string;
   prevDate?: string;
@@ -248,7 +246,7 @@ const DeltaBarSegment: React.FC<{
   invertSign?: boolean;
   convertedDelta?: AccountDelta;
   conversionCurrency?: string;
-}> = ({ delta, segments, total, maxSum, direction, currency, journalUrl, account = "", date: periodDate = "", prevDate = "", transactions = [], invertSign = false, convertedDelta, conversionCurrency }) => {
+}> = ({ delta, segments, total, maxSum, direction, currency, account = "", date: periodDate = "", prevDate = "", transactions = [], invertSign = false, convertedDelta, conversionCurrency }) => {
   if (total <= 0) return null;
   const barWidthPct = Math.min(100, (total / maxSum) * 100);
   return (
@@ -297,6 +295,13 @@ const DeltaBarSegment: React.FC<{
           const displayVal = invertSign ? -val : val;
           const convertedSegVal = convertedDelta ? convertedDelta[key] : null;
           const displayConvertedVal = convertedSegVal !== null ? (invertSign ? -convertedSegVal : convertedSegVal) : null;
+          const segmentJournalUrl =
+            account && periodDate && currency
+              ? buildJournalUrl(account, periodDate, prevDate ?? "", {
+                  segmentKey: key,
+                  currency,
+                })
+              : undefined;
           const tooltipContent = (
             <Box sx={{ p: 0.5, maxWidth: 450, maxHeight: 360, overflow: "auto" }}>
               <Typography variant="caption" component="div" sx={{ fontWeight: 600, mb: 0.25 }}>
@@ -340,9 +345,9 @@ const DeltaBarSegment: React.FC<{
                   </Box>
                 </>
               )}
-              {journalUrl && (
+              {segmentJournalUrl && (
                 <Link
-                  href={journalUrl}
+                  href={segmentJournalUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   sx={{ fontSize: "0.75rem", display: "block", mt: 0.5 }}
@@ -367,11 +372,11 @@ const DeltaBarSegment: React.FC<{
                 component="span"
                 variant="contained"
                 onClick={
-                  journalUrl
+                  segmentJournalUrl
                     ? (e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        window.open(journalUrl, "_blank", "noopener,noreferrer");
+                        window.open(segmentJournalUrl, "_blank", "noopener,noreferrer");
                       }
                     : undefined
                 }
@@ -461,7 +466,6 @@ const DeltaBarCell: React.FC<DeltaBarCellProps> = (props) => {
     prevDate,
     transactions,
     currency,
-    journalUrl,
     invertSign,
     convertedDelta: convertedDelta ?? undefined,
     conversionCurrency,
