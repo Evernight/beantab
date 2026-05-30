@@ -21,6 +21,7 @@ import { useBalances } from "../api/balances";
 import { useTransactions } from "../api/transactions";
 import { HelpDialog } from "./HelpDialog";
 import { SettingsDialog } from "./SettingsDialog";
+import { splitAdditionalDates } from "../utils/additionalDatesUtils";
 
 function normalizeList(values: string[]): string[] {
     const seen = new Set<string>();
@@ -378,14 +379,15 @@ const Dashboard: React.FC = () => {
                       compiledAccountRegexes.valid.some((re) => re.test(b.account)),
                   )
                 : balances;
-        const additionalDatesSet = new Set(
-            (beanTabStore.additionalDates ?? []).map((d) => d.trim()).filter((d) => d.length > 0),
-        );
+        const { showDates, hideDates } = splitAdditionalDates(beanTabStore.additionalDates ?? []);
+        const hideDatesSet = new Set(hideDates);
         const allDates = new Set<string>();
         filtered.forEach((b) => allDates.add(b.date));
         beanTabStore.getAllModifiedCells().forEach((c) => allDates.add(c.date));
-        additionalDatesSet.forEach((d) => allDates.add(d));
-        return Array.from(allDates).sort();
+        showDates.forEach((d) => allDates.add(d));
+        return Array.from(allDates)
+            .filter((d) => !hideDatesSet.has(d))
+            .sort();
     })();
 
     return (

@@ -1,6 +1,7 @@
 import { autorun, makeAutoObservable } from "mobx";
 import { BALANCE_TYPE_SYMBOLS } from "../constants/balanceTypes";
 import type { AccountDelta, AccountDeltaCell } from "../types/deltas";
+import { applyHideToDateList } from "../utils/additionalDatesUtils";
 
 const MODIFIED_CELLS_STORAGE_KEY = "beantab.modifiedCells";
 const ADDITIONAL_DATES_STORAGE_KEY = "beantab.additionalDates";
@@ -148,6 +149,12 @@ export class BeanTabStore {
   setAdditionalDates(dates: string[]) {
     const normalized = [...new Set(dates.map((v) => v.trim()).filter((v) => v.length > 0))].sort();
     this.additionalDates = normalized;
+  }
+
+  hideAdditionalDate(date: string) {
+    const trimmed = date.trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return;
+    this.setAdditionalDates(applyHideToDateList(this.additionalDates, trimmed));
   }
 
   /**

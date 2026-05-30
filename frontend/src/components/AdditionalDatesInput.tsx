@@ -2,17 +2,10 @@ import React from "react";
 import Autocomplete from "@mui/material/Autocomplete";
 import Chip from "@mui/material/Chip";
 import TextField from "@mui/material/TextField";
-
-function isValidISODate(value: string): boolean {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-    const d = new Date(`${value}T00:00:00`);
-    if (Number.isNaN(d.getTime())) return false;
-    // Guard against JS Date normalizing invalid dates (e.g. 2025-02-31).
-    const yyyy = d.getFullYear().toString().padStart(4, "0");
-    const mm = (d.getMonth() + 1).toString().padStart(2, "0");
-    const dd = d.getDate().toString().padStart(2, "0");
-    return `${yyyy}-${mm}-${dd}` === value;
-}
+import {
+    isValidAdditionalDateEntry,
+    parseAdditionalDateEntry,
+} from "../utils/additionalDatesUtils";
 
 export type AdditionalDatesInputProps = Readonly<{
     dates: string[];
@@ -27,7 +20,7 @@ export const AdditionalDatesInput: React.FC<AdditionalDatesInputProps> = ({
     setDates,
     setInputValue,
 }) => {
-    const invalid = dates.filter((d) => !isValidISODate(d.trim()));
+    const invalid = dates.filter((d) => !isValidAdditionalDateEntry(d.trim()));
     const firstInvalid = invalid[0]?.trim();
 
     return (
@@ -46,15 +39,17 @@ export const AdditionalDatesInput: React.FC<AdditionalDatesInputProps> = ({
             }}
             renderTags={(value, getTagProps) =>
                 value.map((date, index) => {
-                    const isInvalid = !isValidISODate(date.trim());
+                    const isInvalid = !isValidAdditionalDateEntry(date.trim());
+                    const parsed = parseAdditionalDateEntry(date);
+                    const isHide = parsed?.kind === "hide";
                     return (
                         <Chip
                             {...getTagProps({ index })}
                             key={`${date}-${index}`}
                             label={date}
                             size="small"
-                            color={isInvalid ? "error" : "default"}
-                            variant={isInvalid ? "outlined" : "filled"}
+                            color={isInvalid ? "error" : isHide ? "warning" : "default"}
+                            variant={isInvalid || isHide ? "outlined" : "filled"}
                         />
                     );
                 })
@@ -63,12 +58,12 @@ export const AdditionalDatesInput: React.FC<AdditionalDatesInputProps> = ({
                 <TextField
                     {...params}
                     label="Additional dates"
-                    placeholder="YYYY-MM-DD"
+                    placeholder="YYYY-MM-DD or -YYYY-MM-DD"
                     error={invalid.length > 0}
                     helperText={
                         invalid.length > 0
                             ? `Invalid date: ${firstInvalid}`
-                            : "Extra date columns to show (use to add new balance entries)"
+                            : "YYYY-MM-DD adds columns; -YYYY-MM-DD hides a date from the grid"
                     }
                     size="small"
                 />
@@ -76,5 +71,4 @@ export const AdditionalDatesInput: React.FC<AdditionalDatesInputProps> = ({
         />
     );
 };
-
 

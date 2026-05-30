@@ -26,6 +26,7 @@ import TuneIcon from "@mui/icons-material/Tune";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import ViewListIcon from "@mui/icons-material/ViewList";
 import RestoreIcon from "@mui/icons-material/Restore";
+import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import { amber, blue, blueGrey, brown, cyan, green, lime, orange, pink, red, teal } from "@mui/material/colors";
 import type { BalancesData } from "../api/balances";
 import { useEstimatedBalances } from "../api/estimatedBalances";
@@ -51,6 +52,7 @@ import {
   buildJournalUrl,
   PADDING_NARRATION,
 } from "../utils/favaTools";
+import { splitAdditionalDates } from "../utils/additionalDatesUtils";
 import {
   beanTabStore,
   BeanTabStore,
@@ -608,13 +610,62 @@ const IconColumnHeader: React.FC<{
   return <Tooltip title={title}>{content}</Tooltip>;
 };
 
-const CalendarColumnHeader: React.FC<ColumnDataSchemaModel | ColumnTemplateProp> = (props) => {
+const CalendarColumnHeader: React.FC<
+  (ColumnDataSchemaModel | ColumnTemplateProp) & { date?: string; onHide?: () => void }
+> = (props) => {
   const label = "name" in props ? props.name : "";
-  return (
+  const { onHide } = props;
+  const header = (
     <IconColumnHeader
       icon={<CalendarTodayIcon style={{ fontSize: "14px" }} />}
       label={label}
     />
+  );
+
+  const centered = (
+    <Box
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        width: "100%",
+      }}
+    >
+      {header}
+    </Box>
+  );
+
+  if (!onHide) return centered;
+
+  return (
+    <Tooltip
+      arrow
+      leaveDelay={400}
+      slotProps={{ popper: { sx: { pointerEvents: "auto" } } }}
+      title={
+        <Button
+          size="small"
+          color="inherit"
+          aria-label="Hide this date column"
+          startIcon={<VisibilityOffIcon sx={{ fontSize: 16 }} />}
+          onClick={(e) => {
+            e.stopPropagation();
+            onHide();
+          }}
+          sx={{
+            textTransform: "none",
+            color: "grey.300",
+            minWidth: 0,
+            py: 0.25,
+            "&:hover": { color: "common.white", backgroundColor: "rgba(255,255,255,0.08)" },
+          }}
+        >
+          Hide column
+        </Button>
+      }
+    >
+      {centered}
+    </Tooltip>
   );
 };
 
@@ -999,9 +1050,9 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
       accountsFilter && accountsFilter.length > 0
         ? balances.filter((b) => accountsFilter.some((re) => re.test(b.account)))
         : balances;
-    const additionalDatesSet = new Set(
-      (additionalDates ?? []).map((d) => d.trim()).filter((d) => d.length > 0),
-    );
+    const { showDates, hideDates } = splitAdditionalDates(additionalDates ?? []);
+    const additionalShowDatesSet = new Set(showDates);
+    const hideDatesSet = new Set(hideDates);
     const accountsByDate = new Map<string, Set<string>>();
     for (const b of filtered) {
       if (b.number === null || b.number === undefined) continue;
@@ -1013,12 +1064,14 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
       s.add(b.account);
     }
     return hideDatesWithLessThanEntries <= 0
-      ? sortedDates
-      : sortedDates.filter((date) => {
-          if (additionalDatesSet.has(date)) return true;
-          const entryCount = accountsByDate.get(date)?.size ?? 0;
-          return entryCount >= hideDatesWithLessThanEntries;
-        });
+      ? sortedDates.filter((date) => !hideDatesSet.has(date))
+      : sortedDates
+          .filter((date) => {
+            if (hideDatesSet.has(date)) return false;
+            if (additionalShowDatesSet.has(date)) return true;
+            const entryCount = accountsByDate.get(date)?.size ?? 0;
+            return entryCount >= hideDatesWithLessThanEntries;
+          });
   }, [
     balancesData,
     accountsFilter,
@@ -1274,7 +1327,13 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
           name: date,
           size: 140,
           sortable: false,
-          columnTemplate: Template(CalendarColumnHeader),
+          columnTemplate: Template((p: ColumnDataSchemaModel | ColumnTemplateProp) => (
+            <CalendarColumnHeader
+              {...p}
+              date={date}
+              onHide={() => beanTabStore.hideAdditionalDate(date)}
+            />
+          )),
           cellTemplate: Template(BalanceCell),
         });
         return cols;
