@@ -8,6 +8,7 @@ import {
   CircularProgress,
   Badge,
   IconButton,
+  Link,
   Menu,
   MenuItem,
   Tooltip,
@@ -39,6 +40,8 @@ interface TableEditControlsProps {
   onToggleShowDeltas?: () => void;
   /** Number of account rows hidden by hideAccountsWithNoEntries */
   hiddenAccountsCount?: number;
+  hideAccountsWithNoEntries?: boolean;
+  onToggleHideAccountsWithNoEntries?: () => void;
   conversionCurrency?: string;
   setConversionCurrency?: (value: string) => void;
   operatingCurrencies?: string[];
@@ -68,6 +71,8 @@ const TableEditControls: React.FC<TableEditControlsProps> = ({
   showDeltas = false,
   onToggleShowDeltas,
   hiddenAccountsCount = 0,
+  hideAccountsWithNoEntries = false,
+  onToggleHideAccountsWithNoEntries,
   conversionCurrency = "none",
   setConversionCurrency,
   operatingCurrencies = [],
@@ -284,15 +289,29 @@ const TableEditControls: React.FC<TableEditControlsProps> = ({
                 ))}
               </ButtonGroup>
             )}
-            {hiddenAccountsCount > 0 && (
-              <Tooltip title="Check &quot;Hide accounts with no entries&quot; and &quot;Only show dates with X or more entries&quot; options if you don't see accounts you expect to see here">
-                <Typography
+            {hiddenAccountsCount > 0 && onToggleHideAccountsWithNoEntries && (
+              <Tooltip
+                title={
+                  hideAccountsWithNoEntries
+                    ? "Click to show hidden accounts"
+                    : "Click to hide accounts with no entries on shown dates"
+                }
+              >
+                <Link
+                  component="button"
+                  type="button"
                   variant="body2"
-                  component="span"
-                  sx={{ color: "text.secondary", opacity: 0.8, fontSize: "0.8rem" }}
+                  onClick={onToggleHideAccountsWithNoEntries}
+                  sx={{
+                    color: "text.secondary",
+                    opacity: 0.8,
+                    fontSize: "0.8rem",
+                    verticalAlign: "baseline",
+                    textDecorationColor: "inherit",
+                  }}
                 >
                   {hiddenAccountsCount} account{hiddenAccountsCount !== 1 ? "s" : ""} hidden
-                </Typography>
+                </Link>
               </Tooltip>
             )}
           </Box>

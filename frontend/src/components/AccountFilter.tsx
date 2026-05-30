@@ -123,7 +123,7 @@ export const AccountFilter: React.FC<AccountFilterProps> = ({
                     helperText={
                         compiledAccountRegexes.invalid.length > 0
                             ? `Invalid regex: ${compiledAccountRegexes.invalid[0]!.pattern}`
-                            : "Regex selectors; pick an account to fill the field, then Enter to apply"
+                            : "Specify one or more selectors (as regular expressions) to filter displayed accounts"
                     }
                     size="small"
                 />

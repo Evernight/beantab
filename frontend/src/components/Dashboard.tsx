@@ -477,6 +477,10 @@ const Dashboard: React.FC = () => {
                       showDeltas={showDeltas}
                       onToggleShowDeltas={() => setShowDeltas(!showDeltas)}
                       hiddenAccountsCount={filterStats.hiddenAccountsCount}
+                      hideAccountsWithNoEntries={hideAccountsWithNoEntries}
+                      onToggleHideAccountsWithNoEntries={() =>
+                        setHideAccountsWithNoEntries(!hideAccountsWithNoEntries)
+                      }
                       conversionCurrency={conversionCurrency}
                       setConversionCurrency={setConversionCurrency}
                       operatingCurrencies={operatingCurrencies}
