@@ -10,3 +10,8 @@ export interface AccountDelta {
   padPositive: number;
   padNegative: number;
 }
+
+export interface AccountDeltaCell {
+  native: AccountDelta;
+  converted: AccountDelta | null;
+}

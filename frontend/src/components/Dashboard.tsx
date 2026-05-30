@@ -157,8 +157,14 @@ const Dashboard: React.FC = () => {
     const showEstimatedBalances = readBooleanParam(showEstimatedBalancesParam, SETTINGS_DEFAULTS.showEstimatedBalances);
     const invertSign = readBooleanParam(invertSignParam, SETTINGS_DEFAULTS.invertSign);
 
-    const { data: transactionsData } = useTransactions(conversionCurrencyForApi, {
+    // Primary: native currency (drives delta values and transaction tooltips)
+    const { data: transactionsData } = useTransactions("", {
         enabled: showDeltas,
+        convertTransactionsAtCost,
+    });
+    // Secondary: converted currency (drives bar-width scale and converted tooltip lines)
+    const { data: convertedTransactionsData } = useTransactions(conversionCurrencyForApi, {
+        enabled: showDeltas && conversionCurrency !== "none",
         convertTransactionsAtCost,
     });
 
@@ -449,6 +455,8 @@ const Dashboard: React.FC = () => {
                         showDeltas={showDeltas}
                         showEstimatedBalances={showEstimatedBalances}
                         transactions={transactionsData?.transactions}
+                        convertedTransactions={convertedTransactionsData?.transactions}
+                        conversionCurrency={conversionCurrency !== "none" ? conversionCurrency : undefined}
                         groupByAccount={groupByAccount}
                         hideDatesWithLessThanEntries={hideDatesWithLessThanEntries}
                         hideAccountsWithNoEntries={hideAccountsWithNoEntries}

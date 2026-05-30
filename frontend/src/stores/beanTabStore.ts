@@ -1,6 +1,6 @@
 import { autorun, makeAutoObservable } from "mobx";
 import { BALANCE_TYPE_SYMBOLS } from "../constants/balanceTypes";
-import type { AccountDelta } from "../types/deltas";
+import type { AccountDelta, AccountDeltaCell } from "../types/deltas";
 
 const MODIFIED_CELLS_STORAGE_KEY = "beantab.modifiedCells";
 const ADDITIONAL_DATES_STORAGE_KEY = "beantab.additionalDates";
@@ -118,7 +118,7 @@ export interface GridRow {
   account: string;
   currency: string;
   defaultBalanceType?: string;
-  [key: string]: string | number | null | AccountDelta | undefined; // Date columns, deltas-{date}, etc.
+  [key: string]: string | number | null | AccountDelta | AccountDeltaCell | undefined; // Date columns, deltas-{date}, etc.
 }
 
 export interface ModifiedCell {

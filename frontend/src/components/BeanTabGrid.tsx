@@ -37,7 +37,7 @@ import {
   DELTA_NEGATIVE,
   DELTA_POSITIVE,
 } from "../constants/deltas";
-import type { AccountDelta } from "../types/deltas";
+import type { AccountDelta, AccountDeltaCell } from "../types/deltas";
 import { BalanceTypeChip } from "./BalanceTypeChip";
 import {
   getColorFromHashString,
@@ -66,6 +66,8 @@ interface BeanTabGridProps {
   sortedDates: string[];
   showDeltas?: boolean;
   transactions?: Transaction[];
+  convertedTransactions?: Transaction[];
+  conversionCurrency?: string;
   groupByAccount?: boolean;
   hideDatesWithLessThanEntries?: number;
   hideAccountsWithNoEntries?: boolean;
@@ -103,62 +105,89 @@ function addToDelta(delta: AccountDelta, account: string, amount: number): void 
   }
 }
 
-function computeDeltasByAccount(
-  transactions: Transaction[],
+function computePairedDeltasByAccount(
+  nativeTransactions: Transaction[],
+  convertedTransactions: Transaction[] | null,
   sortedDates: string[],
-): Record<string, Record<string, AccountDelta>> {
-  const deltasByAccount: Record<string, Record<string, AccountDelta>> = {};
+): Record<string, Record<string, AccountDeltaCell>> {
+  const result: Record<string, Record<string, AccountDeltaCell>> = {};
 
-  for (let i = 0; i < sortedDates.length; i++) {
-    const date = sortedDates[i];
-    const prevDate = i > 0 ? sortedDates[i - 1] : "";
+  for (let di = 0; di < sortedDates.length; di++) {
+    const date = sortedDates[di];
+    const prevDate = di > 0 ? sortedDates[di - 1] : "";
 
-    for (const txn of transactions) {
-      const txnDate = txn.date;
+    for (let ti = 0; ti < nativeTransactions.length; ti++) {
+      const nativeTxn = nativeTransactions[ti];
+      const convertedTxn = convertedTransactions?.[ti] ?? null;
+      const txnDate = nativeTxn.date;
       const inRange =
         (prevDate === "" || txnDate > prevDate) && txnDate <= date;
       if (!inRange) continue;
 
-      const byAccountAndCurrency = new Map<string, { account: string; amount: number }>();
-      for (const p of txn.postings) {
-        const key = `${p.account}|${p.units.currency}`;
-        const current = byAccountAndCurrency.get(key);
-        const amount = p.units.number;
-        if (current) {
-          byAccountAndCurrency.set(key, { account: p.account, amount: current.amount + amount });
+      // Group by account|nativeCurrency, accumulating both native and converted amounts
+      const byKey = new Map<string, { account: string; nativeAmount: number; convertedAmount: number }>();
+      for (let pi = 0; pi < nativeTxn.postings.length; pi++) {
+        const np = nativeTxn.postings[pi];
+        const cp = convertedTxn?.postings[pi] ?? np;
+        const key = `${np.account}|${np.units.currency}`;
+        const existing = byKey.get(key);
+        if (existing) {
+          existing.nativeAmount += np.units.number;
+          existing.convertedAmount += cp.units.number;
         } else {
-          byAccountAndCurrency.set(key, { account: p.account, amount });
+          byKey.set(key, { account: np.account, nativeAmount: np.units.number, convertedAmount: cp.units.number });
         }
       }
 
-      for (const [key] of byAccountAndCurrency) {
-        if (!deltasByAccount[key]) {
-          deltasByAccount[key] = {};
-        }
-        if (!deltasByAccount[key][date]) {
-          deltasByAccount[key][date] = createEmptyAccountDelta();
+      for (const [key] of byKey) {
+        if (!result[key]) result[key] = {};
+        if (!result[key][date]) {
+          result[key][date] = {
+            native: createEmptyAccountDelta(),
+            converted: convertedTransactions !== null ? createEmptyAccountDelta() : null,
+          };
         }
         const keyCurrency = key.split("|")[1];
-        const isPadTxn = txn.narration?.includes(PADDING_NARRATION) ?? false;
-        for (const [otherKey, other] of byAccountAndCurrency) {
+        const isPadTxn = nativeTxn.narration?.includes(PADDING_NARRATION) ?? false;
+        for (const [otherKey, other] of byKey) {
           const otherCurrency = otherKey.split("|")[1];
+          // Currency matching uses native currencies — cross-currency transactions stay excluded
           if (otherKey !== key && otherCurrency === keyCurrency) {
+            const cell = result[key][date];
             if (isPadTxn) {
-              const d = deltasByAccount[key][date];
-              if (other.amount >= 0) {
-                d.padPositive += other.amount;
-              } else {
-                d.padNegative += other.amount;
+              if (other.nativeAmount >= 0) cell.native.padPositive += other.nativeAmount;
+              else cell.native.padNegative += other.nativeAmount;
+              if (cell.converted !== null) {
+                if (other.convertedAmount >= 0) cell.converted.padPositive += other.convertedAmount;
+                else cell.converted.padNegative += other.convertedAmount;
               }
             } else {
-              addToDelta(deltasByAccount[key][date], other.account, other.amount);
+              addToDelta(cell.native, other.account, other.nativeAmount);
+              if (cell.converted !== null) {
+                addToDelta(cell.converted, other.account, other.convertedAmount);
+              }
             }
           }
         }
       }
     }
   }
-  return deltasByAccount;
+  return result;
+}
+
+function transactionAbsSum(txn: Transaction): number {
+  return txn.postings.reduce((sum, p) => sum + Math.abs(p.units.number), 0);
+}
+
+function percentile95(values: number[]): number {
+  if (values.length === 0) return 1;
+  const sorted = [...values].sort((a, b) => a - b);
+  const idx = 0.95 * (sorted.length - 1);
+  const lo = Math.floor(idx);
+  const hi = Math.ceil(idx);
+  if (lo === hi) return Math.max(sorted[lo], 1);
+  const frac = idx - lo;
+  return Math.max(sorted[lo] * (1 - frac) + sorted[hi] * frac, 1);
 }
 
 function filterTransactionsForPeriod(
@@ -217,9 +246,11 @@ const DeltaBarSegment: React.FC<{
   prevDate?: string;
   transactions?: Transaction[];
   invertSign?: boolean;
-}> = ({ delta, segments, total, maxSum, direction, currency, journalUrl, account = "", date: periodDate = "", prevDate = "", transactions = [], invertSign = false }) => {
+  convertedDelta?: AccountDelta;
+  conversionCurrency?: string;
+}> = ({ delta, segments, total, maxSum, direction, currency, journalUrl, account = "", date: periodDate = "", prevDate = "", transactions = [], invertSign = false, convertedDelta, conversionCurrency }) => {
   if (total <= 0) return null;
-  const barWidthPct = (total / maxSum) * 100;
+  const barWidthPct = Math.min(100, (total / maxSum) * 100);
   return (
     <Box
       sx={{
@@ -246,8 +277,9 @@ const DeltaBarSegment: React.FC<{
       >
         {segments.map(({ key, color, textColor }) => {
           const val = delta[key];
-          if (val === 0) return null;
-          const pct = (Math.abs(val) / total) * 100;
+          const widthVal = convertedDelta ? convertedDelta[key] : val;
+          if (widthVal === 0 && val === 0) return null;
+          const pct = (Math.abs(widthVal) / total) * 100;
           const showText = pct >= 15;
           const baseTxns =
             account && periodDate
@@ -263,12 +295,19 @@ const DeltaBarSegment: React.FC<{
             transactionHasPostingForSegment(txn, currency ?? "", key),
           );
           const displayVal = invertSign ? -val : val;
+          const convertedSegVal = convertedDelta ? convertedDelta[key] : null;
+          const displayConvertedVal = convertedSegVal !== null ? (invertSign ? -convertedSegVal : convertedSegVal) : null;
           const tooltipContent = (
             <Box sx={{ p: 0.5, maxWidth: 450, maxHeight: 360, overflow: "auto" }}>
-              <Typography variant="caption" component="div" sx={{ fontWeight: 600, mb: 0.5 }}>
+              <Typography variant="caption" component="div" sx={{ fontWeight: 600, mb: 0.25 }}>
                 {DELTA_KEY_LABEL[key]}: {displayVal.toFixed(2)}
                 {currency ? ` ${currency}` : ""}
               </Typography>
+              {displayConvertedVal !== null && conversionCurrency && (
+                <Typography variant="caption" component="div" sx={{ opacity: 0.7, mb: 0.5 }}>
+                  ≈ {displayConvertedVal.toFixed(2)} {conversionCurrency}
+                </Typography>
+              )}
               {filteredTxns.length > 0 && (
                 <>
                   <Typography variant="caption" component="div" sx={{ mb: 0.5 }}>
@@ -366,12 +405,18 @@ const DeltaBarSegment: React.FC<{
 type DeltaBarCellProps = (ColumnDataSchemaModel | ColumnTemplateProp) & {
   date?: string;
   prevDate?: string;
-  addition?: { transactions?: Transaction[]; invertSign?: boolean };
+  addition?: {
+    transactions?: Transaction[];
+    invertSign?: boolean;
+    deltaBarScaleMax?: number;
+    conversionCurrency?: string;
+  };
 };
 
 const DeltaBarCell: React.FC<DeltaBarCellProps> = (props) => {
-  const delta = props.value as AccountDelta;
-  if (!delta) return null;
+  const cellValue = props.value as AccountDeltaCell | null;
+  if (!cellValue) return null;
+  const delta = cellValue.native;
 
   const model = props.model as { account?: string; currency?: string } | undefined;
   const account = model?.account ?? "";
@@ -380,12 +425,21 @@ const DeltaBarCell: React.FC<DeltaBarCellProps> = (props) => {
   const prevDate = props.prevDate ?? "";
   const transactions = props.addition?.transactions ?? [];
   const invertSign = props.addition?.invertSign ?? false;
+  const deltaBarScaleMax = props.addition?.deltaBarScaleMax;
+  const conversionCurrency = props.addition?.conversionCurrency;
   const journalUrl =
     account && date ? buildJournalUrl(account, date, prevDate) : undefined;
 
-  const totalNeg = DELTA_NEGATIVE.reduce((sum, { key }) => sum + Math.abs(delta[key]), 0);
-  const totalPos = DELTA_POSITIVE.reduce((sum, { key }) => sum + Math.abs(delta[key]), 0);
-  const maxSum = Math.max(totalNeg, totalPos, 1);
+  // Converted delta comes directly from the cell value (paired during computation)
+  const convertedDelta = cellValue.converted;
+
+  // Use converted delta for width totals when available, else fall back to native
+  const widthDelta = convertedDelta ?? delta;
+  const totalNeg = DELTA_NEGATIVE.reduce((sum, { key }) => sum + Math.abs(widthDelta[key]), 0);
+  const totalPos = DELTA_POSITIVE.reduce((sum, { key }) => sum + Math.abs(widthDelta[key]), 0);
+  const maxSum = convertedDelta && deltaBarScaleMax
+    ? deltaBarScaleMax
+    : Math.max(totalNeg, totalPos, 1);
   if (totalNeg <= 0 && totalPos <= 0) return null;
 
   const filteredTxns = filterTransactionsForPeriod(
@@ -409,6 +463,8 @@ const DeltaBarCell: React.FC<DeltaBarCellProps> = (props) => {
     currency,
     journalUrl,
     invertSign,
+    convertedDelta: convertedDelta ?? undefined,
+    conversionCurrency,
   };
   return (
     <Box
@@ -439,10 +495,17 @@ const DeltaBarCell: React.FC<DeltaBarCellProps> = (props) => {
               const val = delta[key];
               if (val === 0) return null;
               const displayVal = invertSign ? -val : val;
+              const convertedSegVal = convertedDelta ? convertedDelta[key] : null;
+              const displayConvertedVal = convertedSegVal !== null ? (invertSign ? -convertedSegVal : convertedSegVal) : null;
               return (
                 <div key={key}>
                   {DELTA_KEY_LABEL[key]}: {displayVal.toFixed(2)}
                   {currency ? ` ${currency}` : ""}
+                  {displayConvertedVal !== null && conversionCurrency && (
+                    <span style={{ opacity: 0.7, marginLeft: 4 }}>
+                      (≈ {displayConvertedVal.toFixed(2)} {conversionCurrency})
+                    </span>
+                  )}
                 </div>
               );
             })}
@@ -885,6 +948,8 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
   sortedDates,
   showDeltas = false,
   transactions = [],
+  convertedTransactions,
+  conversionCurrency,
   groupByAccount = true,
   hideDatesWithLessThanEntries = 0,
   hideAccountsWithNoEntries = false,
@@ -958,12 +1023,27 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
     hideDatesWithLessThanEntries,
   ]);
 
-  const deltasByAccount = useMemo(() => {
+  const pairedDeltasByAccount = useMemo(() => {
     if (!showDeltas || !transactions.length || effectiveDates.length === 0) {
       return {};
     }
-    return computeDeltasByAccount(transactions, effectiveDates);
-  }, [showDeltas, transactions, effectiveDates]);
+    return computePairedDeltasByAccount(
+      transactions,
+      convertedTransactions?.length ? convertedTransactions : null,
+      effectiveDates,
+    );
+  }, [showDeltas, transactions, convertedTransactions, effectiveDates]);
+
+  const deltaBarScaleMax = useMemo(() => {
+    if (!convertedTransactions?.length || !conversionCurrency || effectiveDates.length === 0) {
+      return undefined;
+    }
+    const lastDate = effectiveDates[effectiveDates.length - 1];
+    const values = convertedTransactions
+      .filter((txn) => txn.date <= lastDate)
+      .map(transactionAbsSum);
+    return percentile95(values);
+  }, [convertedTransactions, conversionCurrency, effectiveDates]);
 
   const { data: estimatedBalancesData } = useEstimatedBalances(effectiveDates, {
     enabled: showEstimatedBalances && !!balancesData && effectiveDates.length > 0,
@@ -1013,9 +1093,9 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
       };
 
       effectiveDates.forEach((date) => {
-        if (showDeltas && deltasByAccount) {
+        if (showDeltas) {
           const key = `${account}|${currency}`;
-          row[`deltas-${date}`] = deltasByAccount[key]?.[date] ?? null;
+          row[`deltas-${date}`] = pairedDeltasByAccount[key]?.[date] ?? null;
         }
         const balance = balList.find((b) => b.date === date);
         if (!balance) {
@@ -1049,9 +1129,9 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
           defaultBalanceType: defaultBalanceTypeByAccount.get(acc.account) || "",
         };
         effectiveDates.forEach((date) => {
-          if (showDeltas && deltasByAccount) {
+          if (showDeltas) {
             const key = `${acc.account}|${currency}`;
-            row[`deltas-${date}`] = deltasByAccount[key]?.[date] ?? null;
+            row[`deltas-${date}`] = pairedDeltasByAccount[key]?.[date] ?? null;
           }
           row[date] = null;
         });
@@ -1168,7 +1248,7 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
       ...effectiveDates.flatMap((date, dateIndex) => {
         const prevDate = dateIndex > 0 ? effectiveDates[dateIndex - 1] : "";
         const cols: (ColumnRegular | ColumnGrouping)[] = [];
-        if (showDeltas && deltasByAccount) {
+        if (showDeltas && Object.keys(pairedDeltasByAccount).length > 0) {
           const DeltaBarCellWithDate = (p: ColumnDataSchemaModel | ColumnTemplateProp) => (
             <DeltaBarCell {...p} date={date} prevDate={prevDate} />
           );
@@ -1247,7 +1327,7 @@ const BeanTabGrid: React.FC<BeanTabGridProps> = ({
           }
           source={transformedData}
           columns={columns}
-          additionalData={{ balanceErrorKeys, balanceErrorMessages, estimatedCellValues, balanceSources, transactions, invertSign }}
+          additionalData={{ balanceErrorKeys, balanceErrorMessages, estimatedCellValues, balanceSources, transactions, invertSign, deltaBarScaleMax, conversionCurrency }}
           hideAttribution={true}
           theme={isDarkMode ? "darkCompact" : "compact"}
           resize={true}

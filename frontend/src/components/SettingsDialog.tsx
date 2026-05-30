@@ -169,10 +169,10 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     <Divider component="li" />
                     <ListItem alignItems="flex-start">
                         <FormControl fullWidth size="small">
-                            <InputLabel id="conversion-currency-label">Conversion Currency</InputLabel>
+                            <InputLabel id="conversion-currency-label">Delta Bar Scale Currency</InputLabel>
                             <Select
                                 labelId="conversion-currency-label"
-                                label="Conversion Currency"
+                                label="Delta Bar Scale Currency"
                                 value={conversionCurrency}
                                 onChange={(e: SelectChangeEvent<string>) =>
                                     setConversionCurrency(e.target.value)
@@ -192,6 +192,14 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                                 ))}
                             </Select>
                         </FormControl>
+                        <ListItemText
+                            sx={{ mt: 1.5 }}
+                            secondary={
+                                <Typography variant="body2" color="text.secondary">
+                                    When set, delta bar widths are normalized to values converted to this currency. Enables cross-account and cross-currency comparison.
+                                </Typography>
+                            }
+                        />
                     </ListItem>
                     <ListItem
                         alignItems="flex-start"
@@ -207,7 +215,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
                             primary="Convert transactions at cost"
                             secondary={
                                 <Typography variant="body2" color="text.secondary">
-                                    When converting to a target currency, postings with cost specified are converted using their cost basis. When disabled, standard price conversion is used for all postings.
+                                    When converting postings to the delta bar scale currency, postings with a cost basis are converted at cost. When disabled, market price conversion is used for all postings.
                                 </Typography>
                             }
                         />
