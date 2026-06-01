@@ -4,24 +4,12 @@ import logging
 import subprocess
 import traceback
 from dataclasses import asdict
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict
 from typing import List
 from typing import NamedTuple
 
 from beancount.core import data
-from beancount.core.amount import Amount
-from beancount.core.position import Position
 from beancount.core.interpolate import BalanceError as BeancountBalanceError
-from beancount_lazy_plugins.balance_extended.common import BalanceExtendedError
-from beancount_lazy_plugins.balance_extended.common import BalanceType
-from beancount_lazy_plugins.balance_extended.common import build_account_currencies_mapping
-from beancount_lazy_plugins.balance_extended.common import ensure_account_balance_type
-from beancount_lazy_plugins.balance_extended.common import get_directives_defined_config
-from beancount_lazy_plugins.balance_extended.common import parse_balance_extended_entry
-from beancount_lazy_plugins.valuation.common import ValuationError
-from beancount_lazy_plugins.valuation.common import parse_valuation_entry
 from fava.core.conversion import convert_position
 from fava.core.conversion import get_market_value
 from fava.ext import FavaExtensionBase
@@ -30,48 +18,11 @@ from fava.helpers import FavaAPIError
 from flask import request
 
 from .BeantabFileManager import BeantabFileManager
+from .balances_data import build_balances_payload
 from .estimated_balances import compute_estimated_balances
 from .models import ModifiedCellData
-from .utils import is_original_entry
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class BeanTabBalance:
-    """Represents a balance statement for an account."""
-
-    account: str  # account name
-    currency: str  # currency from the amount
-    date: str  # date in ISO format
-    number: float  # number from the amount
-    type: BalanceType
-    filename: str | None = None
-    lineno: int | None = None
-
-    def to_dict(self) -> dict:
-        data_dict = asdict(self)
-        data_dict["type"] = self.type.value
-        if data_dict.get("filename") is None:
-            data_dict.pop("filename", None)
-        if data_dict.get("lineno") is None:
-            data_dict.pop("lineno", None)
-        return data_dict
-
-
-def _entry_source(entry) -> tuple[str | None, int | None]:
-    meta = entry.meta or {}
-    return meta.get("filename"), meta.get("lineno")
-
-
-@dataclass
-class BeanTabAccount:
-    account: str
-    defaultBalanceType: str
-    currencies: List[str]
-
-    def to_dict(self) -> dict:
-        return asdict(self)
 
 
 class ExtConfig(NamedTuple):
@@ -167,139 +118,12 @@ class BeanTab(FavaExtensionBase):
     @extension_endpoint("balances")
     @api_response
     def api_balances(self):
-        """Get balance statements as a flat list.
-        Include regular Balance entries, and special balance-like Custom directives
-        created/used by plugins (balance-ext, valuation).
+        """Balance assertions and account metadata for the BeanTab grid.
+
+        ``accounts`` includes every account with an Open directive (including closed),
+        plus accounts only seen on balance/valuation/balance-ext entries. Per-account
+        ``currencies``: declared on Open, else from balances, postings, or operating currency.
         """
-        entries = self.ledger.all_entries
-
-        # Convert to flat list of BeanTabBalance objects
-        balances: List[BeanTabBalance] = []
-        config_errors: List[BalanceExtendedError] = []
-        balance_type_config = get_directives_defined_config(entries, config_errors)
-        if config_errors:
-            for err in config_errors:
-                logger.warning("balance-ext config error: %s", err.message)
-        account_to_type_mapping: dict[str, str] = {}
-        default_balance_type = BalanceType.REGULAR.value
-        account_currencies = build_account_currencies_mapping(self.ledger.all_entries)
-
-        for entry in entries:
-            if isinstance(entry, data.Open):
-                ensure_account_balance_type(
-                    entry.account,
-                    account_to_type_mapping,
-                    balance_type_config,
-                    default_balance_type,
-                )
-            elif isinstance(entry, data.Balance):
-                if not is_original_entry(entry):
-                    continue
-                ensure_account_balance_type(
-                    entry.account,
-                    account_to_type_mapping,
-                    balance_type_config,
-                    default_balance_type,
-                )
-                filename, lineno = _entry_source(entry)
-                bean_tab_balance = BeanTabBalance(
-                    account=entry.account,
-                    currency=entry.amount.currency,
-                    date=entry.date.isoformat(),
-                    number=float(entry.amount.number),
-                    type=BalanceType.REGULAR,
-                    filename=filename,
-                    lineno=lineno,
-                )
-                balances.append(bean_tab_balance.to_dict())
-
-            elif isinstance(entry, data.Custom) and entry.type == "valuation":
-                if not is_original_entry(entry):
-                    continue
-                try:
-                    parsed = parse_valuation_entry(entry)
-                except ValuationError:
-                    continue
-
-                ensure_account_balance_type(
-                    parsed.account,
-                    account_to_type_mapping,
-                    balance_type_config,
-                    default_balance_type,
-                )
-                filename, lineno = _entry_source(entry)
-                bean_tab_balance = BeanTabBalance(
-                    account=parsed.account,
-                    currency=parsed.amount.currency,
-                    date=entry.date.isoformat(),
-                    number=float(parsed.amount.number),
-                    type=BalanceType.VALUATION,
-                    filename=filename,
-                    lineno=lineno,
-                )
-                balances.append(bean_tab_balance.to_dict())
-
-            elif isinstance(entry, data.Custom) and entry.type == "balance-ext":
-                if not is_original_entry(entry):
-                    continue
-                try:
-                    parsed = parse_balance_extended_entry(
-                        entry,
-                        account_to_type_mapping,
-                        balance_type_config,
-                        default_balance_type,
-                    )
-                except BalanceExtendedError:
-                    continue
-
-                balance_type_map = {
-                    BalanceType.REGULAR: BalanceType.REGULAR,
-                    BalanceType.FULL: BalanceType.REGULAR,
-                    BalanceType.PADDED: BalanceType.PADDED,
-                    BalanceType.FULL_PADDED: BalanceType.PADDED,
-                    BalanceType.VALUATION: BalanceType.VALUATION,
-                }
-                balance_type_for_display = balance_type_map.get(parsed.balance_type, BalanceType.PADDED)
-                asserted_amounts = parsed.amount_values
-                if parsed.balance_type in (BalanceType.FULL, BalanceType.FULL_PADDED):
-                    # TODO: proper implementation will need more consideration
-                    continue
-                    # all_currencies = account_currencies.get(parsed.account, set())
-                    # asserted_amounts.extend([Amount(0.0, currency) for currency in all_currencies - set(asserted_amounts)])
-
-                filename, lineno = _entry_source(entry)
-                for amount_obj in asserted_amounts:
-                    bean_tab_balance = BeanTabBalance(
-                        account=parsed.account,
-                        currency=amount_obj.currency,
-                        date=entry.date.isoformat(),
-                        number=float(amount_obj.number),
-                        type=balance_type_for_display,
-                        filename=filename,
-                        lineno=lineno,
-                    )
-                    balances.append(bean_tab_balance.to_dict())
-
-        # Per-account currencies: from Open directive when declared, else from balances
-        account_currencies_list: Dict[str, List[str]] = {}
-        for account in account_to_type_mapping:
-            currencies = account_currencies.get(account, set())
-            if currencies:
-                account_currencies_list[account] = sorted(currencies)
-            else:
-                from_balances = {b["currency"] for b in balances if b["account"] == account}
-                account_currencies_list[account] = sorted(from_balances)
-
-        accounts = [
-            BeanTabAccount(
-                account=account,
-                defaultBalanceType=balance_type,
-                currencies=account_currencies_list.get(account, []),
-            ).to_dict()
-            for account, balance_type in sorted(account_to_type_mapping.items())
-        ]
-
-        # Collect BalanceErrors from ledger (balance check failures) for table highlighting
         balance_errors: List[dict] = []
         for err in self.ledger.errors:
             if isinstance(err, BeancountBalanceError) and getattr(err, "entry", None):
@@ -313,14 +137,11 @@ class BeanTab(FavaExtensionBase):
                     }
                 )
 
-        operating_currencies = list(self.ledger.options.get("operating_currency", []) or [])
-
-        return {
-            "balances": balances,
-            "accounts": accounts,
-            "balanceErrors": balance_errors,
-            "operatingCurrencies": operating_currencies,
-        }
+        return build_balances_payload(
+            self.ledger.all_entries,
+            self.ledger.options,
+            balance_errors,
+        )
 
     @extension_endpoint("transactions")
     @api_response
